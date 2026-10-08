@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Splash Preview</title>
+  <link rel="stylesheet" href="../lib/splash.css" />
+  <style>
+    /* In the app these are inlined as data URIs by lib/index.js. */
+    #rhine-splash {
+      --rl-img-bars-light: url(../assets/bars-light.jpg);
+      --rl-img-bars-dark: url(../assets/bars-dark.jpg);
+      --rl-img-specimen: url(../assets/specimen.jpg);
+    }
+    :root { color-scheme: light; --bg: #fff; --side: #f6f7f8; --ink: #111418; --muted: #6b7178; --line: #e6e8eb; --chip: #eef0f2; }
+    body[data-ds-dark-theme] { color-scheme: dark; --bg: #151517; --side: #1c1d20; --ink: #eceef0; --muted: #8d9399; --line: #2a2c30; --chip: #24262a; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, "PingFang SC", "Segoe UI", sans-serif; }
+
+    /* Mock DeepSeek Harness shell, rendered into #root after the chosen delay. */
+    .app { display: flex; height: 100vh; }
+    .side { width: 248px; flex: none; background: var(--side); border-right: 1px solid var(--line); padding: 52px 14px 14px; }
+    .side .brand { font-weight: 600; letter-spacing: .02em; margin: 0 8px 18px; }
+    .side .item { padding: 8px 10px; border-radius: 8px; color: var(--muted); }
+    .side .item.on { background: var(--chip); color: var(--ink); }
+    .main { flex: 1; display: grid; place-items: center; padding: 24px; }
+    .hero { text-align: center; max-width: 560px; width: 100%; }
+    .hero h1 { font-size: 26px; font-weight: 600; margin: 0 0 18px; }
+    .composer { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; text-align: left; color: var(--muted); min-height: 96px; }
+
+    /* Preview controls stay above the app but below the splash. */
+    .ctl { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 1000; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+      max-width: calc(100vw - 32px); padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: 0 6px 24px rgba(0,0,0,.08); font-size: 12px; }
+    .ctl label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+    .ctl select, .ctl button { font: inherit; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+    .ctl button { cursor: pointer; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <div class="ctl" id="ctl">
+    <button id="replay" title="R">重播 ▶</button>
+    <button id="leave">立即退场</button>
+    <label>退场 <select id="exit"><option value="random">random</option><option value="doors">doors</option><option value="decode">decode</option><option value="glitch">glitch</option><option value="iris">iris</option></select></label>
+    <label>主题 <select id="theme"><option value="light">浅色</option><option value="dark">深色</option></select></label>
+    <label>时长 <select id="duration"><option value="4500">4.5s</option><option value="3000">3s</option><option value="7000">7s</option></select></label>
+    <label>#root 就绪 <select id="ready"><option value="1200">1.2s</option><option value="0">立即</option><option value="6000">6s</option><option value="-1">永不</option></select></label>
+    <label><input type="checkbox" id="reduced" /> 减少动态效果</label>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    const params = new URLSearchParams(location.search)
+    const state = {
+      theme: params.get('theme') ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+      duration: Number(params.get('duration') ?? 4500),
+      exit: params.get('exit') ?? 'random',
+      ready: Number(params.get('ready') ?? 1200),
+      reduced: params.get('reduced') === '1',
+    }
+    $('exit').value = state.exit
+    $('theme').value = state.theme
+    $('duration').value = String(state.duration)
+    $('ready').value = String(state.ready)
+    $('reduced').checked = state.reduced
+
+    const APP = `<div class="app"><div class="side"><div class="brand">DeepSeek Harness</div>
+      <div class="item on">新对话</div><div class="item">任务</div><div class="item">插件</div><div class="item">设置</div></div>
+      <div class="main"><div class="hero"><h1>今天想做点什么？</h1><div class="composer">输入消息…</div></div></div></div>`
+
+    let readyTimer
+    function run() {
+      clearTimeout(readyTimer)
+      document.getElementById('rhine-splash')?.remove()
+      document.querySelector('script[data-splash]')?.remove()
+      $('root').innerHTML = ''
+
+      // Mirror what the theme bootstrap row does in the real app.
+      document.documentElement.dataset.dsThemeSource = state.theme
+      document.body.toggleAttribute('data-ds-dark-theme', state.theme === 'dark')
+
+      globalThis.__RHINE_SPLASH__ = { duration: state.duration, exit: state.exit, replayOnReload: true, reducedMotion: state.reduced }
+      const script = document.createElement('script')
+      script.dataset.splash = ''
+      script.src = `../lib/splash.js?t=${Date.now()}`
+      document.body.append(script)
+
+      if (state.ready >= 0) readyTimer = setTimeout(() => { $('root').innerHTML = APP }, state.ready)
+    }
+
+    for (const id of ['theme', 'exit', 'duration', 'ready']) {
+      $(id).addEventListener('change', (e) => { state[id] = (id === 'theme' || id === 'exit') ? e.target.value : Number(e.target.value); run() })
+    }
+    $('reduced').addEventListener('change', (e) => { state.reduced = e.target.checked; run() })
+    $('replay').addEventListener('click', run)
+    $('leave').addEventListener('click', () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+    addEventListener('keydown', (e) => { if (e.key === 'r' && !document.getElementById('rhine-splash')) run() })
+
+    run()
+  </script>
+</body>
+</html>

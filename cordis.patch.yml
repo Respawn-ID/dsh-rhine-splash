@@ -1,0 +1,26 @@
+- insert:
+    - id: rhine-splash
+      name: dsh-rhine-splash
+      config:
+        # 主标题，最多 80 个字符
+        title: 'DEEPSEEK HARNESS'
+        # 副标题，最多 80 个字符
+        subtitle: 'RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION'
+        # 角落 HUD 编号，最多 80 个字符
+        code: 'RL-DSH/0.2'
+        # 浅色模式强调色（橙色），十六进制颜色
+        accentLight: '#e46f24'
+        # 深色模式强调色（橙色），十六进制颜色
+        accentDark: '#f0893e'
+        # 主题：auto 跟随系统，或 light / dark
+        theme: 'auto'
+        # 退场动画：random 每次随机且不与上次重复，或固定为 doors（舱门）/ decode（代码消散）/ glitch（故障撕裂）/ iris（六边形光圈）
+        exit: 'random'
+        # 最短显示时长（毫秒），范围 0–15000
+        duration: 4500
+        # 强制退出时长（毫秒），不小于 duration，最大 20000
+        maxWait: 8000
+        # 是否允许点击跳过
+        skippable: true
+        # 页面刷新时是否重新播放
+        replayOnReload: false

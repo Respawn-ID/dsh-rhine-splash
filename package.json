@@ -1,0 +1,51 @@
+{
+  "name": "dsh-rhine-splash",
+  "description": "Rhine Lab inspired boot splash animation for DeepSeek Harness",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "ArtemisFowl (https://github.com/Respawn-ID)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Respawn-ID/dsh-rhine-splash.git"
+  },
+  "homepage": "https://github.com/Respawn-ID/dsh-rhine-splash#readme",
+  "bugs": {
+    "url": "https://github.com/Respawn-ID/dsh-rhine-splash/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-bundle",
+    "splash-screen",
+    "arknights"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/splash.css",
+    "lib/splash.js",
+    "assets/*.jpg",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json"
+  ],
+  "scripts": {
+    "assets": "node scripts/render-assets.mjs",
+    "test": "node scripts/test-host.mjs",
+    "preview": "python3 -m http.server 4173"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

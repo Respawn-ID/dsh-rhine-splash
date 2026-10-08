@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Rhine Lab Splash",
+    "description": "Plays a Rhine Lab style boot animation when DeepSeek Harness starts; follows light/dark mode and can be skipped."
+  }
+}
