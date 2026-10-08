@@ -78,3 +78,4 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
   - Exits are registered in `EXITS`. The reduced-motion setting always uses a plain fade.
 - Checks: `npm test`, plus `node --check lib/splash.js`. Preview with `npm run preview`, then open `http://localhost:4173/preview/`; the page has selectors for exit, theme and duration.
 - Version control: work on a branch, merge with `--no-ff`, and tag releases (`vX.Y.Z`). Keep `package.json` `version` in sync with the tag.
+- Changelog and releases: `CHANGELOG.md` follows Keep a Changelog; add entries under `[未发布]`. Write release notes from `.github/RELEASE_TEMPLATE.md`, title `vX.Y.Z · <summary>`, and attach the `npm pack` tarball.
