@@ -16,12 +16,18 @@
       --dsw-alias-border-l1: rgba(18, 17, 15, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .14);
       --dsw-elevation-stroke: 0 0 0 .5px var(--dsw-elevation-stroke-color);
       --dsw-elevation-prominent: var(--dsw-elevation-stroke), 0 3px 8px 0 #0000000a, 0 0 20px 0 #0000000d;
+      --dsw-static-deepseek-500: #e46f24; --dsw-menu-surface-fill: #f8f9fa94;
+      --dsw-alias-label-deep-diving: color-mix(in srgb, #e46f24 80%, #12110f);
+      --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, #e46f24 32%, #fbfaf7);
       margin: 0; padding: 24px; background: #f2f1ec; color: var(--dsw-alias-label-primary);
       font: 13px/1.6 var(--dsw-font-family);
     }
     body[data-ds-dark-theme] {
       --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
       --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .07);
+      --dsw-menu-surface-fill: #43454a73;
+      --dsw-alias-label-deep-diving: color-mix(in srgb, #f0893e 72%, #aca89e);
+      --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, #f0ad7c 60%, #f0893e);
       background: #171715;
     }
     body * { --dsw-elevation-stroke: 0 0 0 .5px var(--dsw-elevation-stroke-color); }
@@ -29,6 +35,15 @@
     .cell { display: flex; flex-direction: column; gap: 14px; }
     .cell > b { font-size: 11px; letter-spacing: .08em; opacity: .5; }
     .cell .rl-eff-pop { position: relative; }
+    /* Stand-ins for dsh's MenuSurface material and TextShimmer, which the
+       app supplies from its own primitives. */
+    .rl-eff-pop { background: var(--dsw-menu-surface-fill); backdrop-filter: blur(40px) saturate(150%); border-radius: 8px; }
+    .ts { position: relative; display: inline-grid; }
+    .ts > .deco { position: absolute; inset: 0; overflow: clip; }
+    .ts .sweep { position: absolute; inset: 0; overflow: hidden; color: var(--dsw-alias-label-shimmer); mask-image: linear-gradient(105deg, transparent 0%, black 40% 60%, transparent 100%); animation: ts-sweep 1.5s steps(48, end) .3s infinite; }
+    .ts .hl { display: block; animation: ts-hl 1.5s steps(48, end) .3s infinite; }
+    @keyframes ts-sweep { 0% { transform: translateX(-100%); } 66.6667%, 100% { transform: translateX(100%); } }
+    @keyframes ts-hl { 0% { transform: translateX(100%); } 66.6667%, 100% { transform: translateX(-100%); } }
     .bar { display: flex; justify-content: flex-end; padding: 6px; border-radius: 12px; border: 1px solid var(--dsw-alias-border-l1); }
     .backdrop { position: absolute; inset: 0; z-index: -1; overflow: hidden; opacity: .1; font-size: 12px; line-height: 2.2; }
   </style>
@@ -50,6 +65,7 @@
     })
 
     const LEVELS = ['关闭', '低', '高', '最高']
+    const shimmer = (text, on) => on ? `<span class="ts"><span>${text}</span><span class="deco"><span class="sweep"><span class="hl">${text}</span></span></span></span>` : text
     const flags = (level, extra = {}) => Object.entries({ 'data-level': level, 'data-max': level === LEVELS.length - 1 ? 'true' : null, ...extra })
       .filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}="${v}"`).join(' ')
 
@@ -58,10 +74,10 @@
       const on = (k) => (k <= level ? 'data-on="true"' : '')
       return `
         <div class="bar"><div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
-          <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${LEVELS[level]}</span></button>
+          <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
         </div></div>
         <div class="rl-eff-pop" ${flags(level, extra)}>
-          <div class="rl-eff-head"><span class="rl-eff-title">推理强度</span><span class="rl-eff-value">${LEVELS[level]}</span></div>
+          <div class="rl-eff-head"><span class="rl-eff-title">推理强度</span><span class="rl-eff-value">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></div>
           <div class="rl-eff-ends"><span>更快</span><span>更深</span></div>
           <div class="rl-eff-track" tabindex="0" style="--rl-eff-p:${p}"><div class="rl-eff-rail">
             <i class="rl-eff-fill"></i>${LEVELS.map((_, k) => `<i class="rl-eff-stop" ${on(k)} style="--k:${k / (n - 1)}"></i>`).join('')}<i class="rl-eff-thumb"></i>
@@ -74,7 +90,7 @@
       document.getElementById('grid').innerHTML = [
         ['低', control(1)],
         ['高 · 拖动中', control(2, 0.58, { 'data-dragging': 'true' })],
-        ['最高 · OVERDRIVE', control(3)],
+        ['最高', control(3)],
       ].map(([label, html]) => `<div class="cell"><b>${label}</b>${html}</div>`).join('')
     }
   </script>
