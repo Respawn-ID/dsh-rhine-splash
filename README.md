@@ -4,100 +4,63 @@
 
 # 莱茵生命开屏动画
 
-为 DeepSeek Harness 添加莱茵生命风格的开屏动画、界面主题与品牌标志。支持桌面版与网页版。
+DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色和品牌标志。
 
 [![Release](https://img.shields.io/github/v/release/Respawn-ID/dsh-rhine-splash?label=release)](https://github.com/Respawn-ID/dsh-rhine-splash/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-0.2.0--rc.2-e46f24.svg)](#环境要求)
 
-[截图](#截图) · [安装](#安装) · [配置](#配置) · [动画说明](#动画说明) · [开发](#开发) · [更新日志](CHANGELOG.md)
+[安装](#安装) · [界面主题与品牌标志](#界面主题与品牌标志) · [配置](#配置) · [开屏动画](#开屏动画) · [常见问题](#常见问题) · [开发](#开发) · [更新日志](CHANGELOG.md)
 
 </div>
 
-## 目录
+## 简介
 
-- [截图](#截图)
-- [简介](#简介)
-- [环境要求](#环境要求)
-- [安装](#安装)
-- [界面主题与品牌](#界面主题与品牌)
-- [配置](#配置)
-- [动画说明](#动画说明)
-- [常见问题](#常见问题)
-- [开发](#开发)
-- [声明](#声明)
-- [许可证](#许可证)
+莱茵生命开屏动画（`dsh-rhine-splash`）是 DeepSeek Harness 的第三方组合包，适用于桌面版和网页版。
 
-## 截图
+安装后，每次启动 Harness 都会先播放一段约 4.5 秒的开屏动画，再进入主界面。主界面的配色、圆角和 Logo 也会换成莱茵生命风格。开屏动画、界面主题和品牌标志可以分别开关。
+
+设计参考了《明日方舟》特别映像「莱茵生命：访问」。所有图形均为原创，不包含游戏官方素材。
 
 | | 浅色 | 深色 |
 | --- | --- | --- |
 | 开屏动画 | ![浅色开屏动画](screenshots/splash-light.png) | ![深色开屏动画](screenshots/splash-dark.png) |
-| 界面主题与品牌 | ![浅色界面主题](screenshots/home-light.png) | ![深色界面主题](screenshots/home-dark.png) |
+| 主界面 | ![浅色主界面](screenshots/home-light.png) | ![深色主界面](screenshots/home-dark.png) |
 
-截图来自 DeepSeek Harness 网页版 0.2.0-rc.2，窗口 1440 × 900，默认配置。
-
-## 简介
-
-`dsh-rhine-splash` 是面向 DeepSeek Harness 的第三方组合包（bundle），内含一个插件 `rhine-splash`。Harness 启动时，它会在主界面加载前播放一段约 4.5 秒的开屏动画；启动后，整个界面换成莱茵风格的配色、形状与品牌标志。
-
-视觉语言参考《明日方舟》特别映像「莱茵生命：访问」：暖白底、黑色字标、少量橙色强调，以及档案与仪器式的机能风标注。所有图形与图片均为原创或程序生成，不含《明日方舟》官方素材。
-
-### 特性
-
-- **两幕叙事**：先是权限验证（`REQUESTING ACCESS` → `PERMISSION AUTHORIZED`），再进入终端欢迎页（`WELCOME TO / DEEPSEEK HARNESS / INTERNAL TERMINAL`）。
-- **四种退场动画**：舱门、代码消散、故障撕裂、六边形光圈，默认每次随机且不与上一次重复。
-- **跟随主题**：读取 Harness 的深浅色设置，浅色与深色各有一套背景素材。
-- **不阻塞启动**：主界面就绪后才退场，并设有最长等待时间；随时可以点击或按键跳过。
-- **尊重系统设置**：系统开启「减弱动态效果」时，只显示静态画面并淡出。
-- **零依赖**：仅使用 Node 内置模块，没有 npm 依赖、DSH peer 依赖或安装脚本。
-- **界面主题**：只替换 dsh 的设计变量，把冷灰与 DeepSeek 蓝换成暖白 / 暖炭黑与莱茵橙，圆角改为切角。
-- **品牌替换**：侧栏与空会话页换成莱茵风标志，两套 Logo 可切换；关闭后恢复官方品牌。
-- **可配置**：插件页配置页与 `/splash` 命令可图形化修改文案、强调色、主题、时长、退场动画与各项开关。
+以上截图来自 DeepSeek Harness 网页版 0.2.0-rc.2，使用默认设置。
 
 ## 环境要求
 
-| 项目 | 要求 |
-| --- | --- |
-| DeepSeek Harness | 桌面版或网页版（`dsh web`）0.2.0-rc.2 |
-| pnpm | 仅网页版命令行安装需要，须在 `PATH` 上 |
-| Python 3 | 可选，仅本地预览需要 |
-| Node.js | 可选，仅运行测试或重新生成图片素材需要 |
-| macOS `sips` | 可选，仅重新生成图片素材需要（系统自带） |
+- DeepSeek Harness 桌面版或网页版 0.2.0-rc.2。
+- 在网页版中通过命令行安装时，终端里需要能使用 `pnpm`。
 
 ## 安装
 
-### 选择安装来源
+你可以从 GitHub、发布包或本地目录安装。下面步骤中的 `<来源>`，请替换为以下任意一种：
 
-下文中的 `<来源>` 可以是以下三种之一：
+- **GitHub**：`github:Respawn-ID/dsh-rhine-splash`。如需指定版本，在末尾加上版本标签，例如 `github:Respawn-ID/dsh-rhine-splash#v0.2.0`。
+- **发布包**：从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写文件的绝对路径。无法访问 GitHub 时，建议使用这种方式。
+- **本地目录**：克隆本仓库后，填写仓库的绝对路径。适合需要修改代码的情况。
 
-| 来源 | `<来源>` 填写内容 | 适用场景 |
-| --- | --- | --- |
-| GitHub | `github:Respawn-ID/dsh-rhine-splash`；指定版本时追加标签，如 `github:Respawn-ID/dsh-rhine-splash#v0.1.0` | 推荐。能正常访问 GitHub 时最省事 |
-| 发布包 | 从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写它的绝对路径 | GitHub 访问不稳定时。插件页的「改用国内镜像」对 GitHub 地址无效，下载发布包最稳妥 |
-| 本地目录 | `git clone` 后的仓库绝对路径，如 `/Users/<用户名>/dsh-rhine-splash` | 需要修改代码时。以链接方式安装，修改后重启 Harness 即可生效 |
+本组合包没有依赖，也不运行安装脚本，因此安装时不会要求你确认版本豁免或允许构建脚本。
 
-> [!NOTE]
-> 本组合包不声明 DSH 版本依赖，也没有安装脚本，安装时不会出现版本豁免或「允许构建脚本」的提示。
+### 在插件页安装
 
-### 方式一：插件页（推荐）
+1. 在 Harness 侧栏点击 **插件**，然后点击 **添加插件**。
+2. 输入 `<来源>`，点击 **安装**。安装完成后，点击 **立即启用**。
+3. 按 <kbd>⌘</kbd> + <kbd>Q</kbd> 完全退出 Harness，然后重新打开。
 
-1. 在 DeepSeek Harness 侧栏打开 **插件**，点击 **添加插件**。
-2. 在输入框中填写 `<来源>`，点击 **安装**；完成后点击 **立即启用**。
-3. 完全退出 Harness（<kbd>⌘</kbd> + <kbd>Q</kbd>）并重新打开，开屏动画会在启动时播放。
+### 让 dsh agent 安装
 
-### 方式二：由 dsh agent 安装
+1. 以本仓库目录为工作区新建会话，并切换到 **Creator** 预设。
+2. 告诉 agent「安装这个插件」。agent 会按照 [`AGENTS.md`](AGENTS.md) 中的说明完成安装，每一步都会请你批准。
+3. 安装完成后，完全退出并重新打开 Harness。
 
-1. 在 Harness 中以本仓库目录为工作区新建会话，并切换到 **Creator** 预设。
-2. 对 agent 说「安装这个插件」。
-3. agent 会读取仓库根目录的 [`AGENTS.md`](AGENTS.md)，调用内置的 `plugin_manager` 工具完成安装。每次调用都会请求你批准。
-4. 按提示完全退出并重新打开 Harness。
+### 使用命令行安装
 
-### 方式三：命令行
-
-1. 在菜单栏选择 **DeepSeek Harness → 管理 dsh 命令… → 安装**，然后新开一个终端，运行 `dsh --version` 确认命令可用。
-2. 完全退出 Harness。Harness 运行期间会占用 profile，命令行无法写入。
-3. 运行以下命令。路径含空格时必须加引号：
+1. 如果终端里还没有 `dsh` 命令，在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…** > **安装**。
+2. 完全退出 Harness。Harness 运行时会锁定配置，命令行无法写入。
+3. 运行以下命令。路径中有空格时，请保留引号：
 
    ```bash
    dsh plugin --profile desktop add "<来源>"
@@ -105,260 +68,228 @@
 
 4. 重新打开 Harness。
 
-### 方式四：网页版（`dsh web`）
+### 在网页版中安装
 
 1. 停止正在运行的 `dsh web`。
-2. 运行以下命令。dsh 会调用 `PATH` 上的 pnpm，请先确认 `pnpm --version` 可用：
+2. 运行以下命令：
 
    ```bash
    dsh plugin --profile web add "<来源>"
    ```
 
-3. 重新运行 `dsh web`，在浏览器中打开它输出的地址。
+   dsh 会调用 pnpm 安装插件。如果提示找不到 pnpm，请先安装 pnpm。
 
-网页版的配置、卸载与桌面版相同，只需把命令和路径中的 `desktop` 换成 `web`。
+3. 重新运行 `dsh web`，在浏览器中打开终端显示的地址。
 
-### 验证安装
+网页版的配置和卸载方法与桌面版相同，只需把命令和路径中的 `desktop` 换成 `web`。
 
-- 插件页中出现「莱茵生命开屏动画」，且开关处于开启状态；或者
-- `~/.dsh/profiles/desktop/package.json`（网页版为 `profiles/web/package.json`）的 `dsh.profile.bundles` 中包含 `dsh-rhine-splash`。该文件仅用于查看，请勿手动编辑。
+### 确认安装成功
+
+打开 **插件** 页面，在「已安装」中能看到「莱茵生命开屏动画」，并且开关已打开，就说明安装成功了。
 
 ### 更新
 
-- **本地目录安装**：修改代码后重启 Harness 即可。
-- **GitHub 或发布包安装**：Harness 暂不支持组合包自动更新，请先卸载，再安装新版本。各版本变更见 [CHANGELOG.md](CHANGELOG.md) 与 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases)。
+Harness 目前不支持自动更新组合包。要升级到新版本，请先卸载旧版本，再安装新版本。如果是从本地目录安装的，修改代码后重启 Harness 即可生效。
+
+各版本的变化请查看[更新日志](CHANGELOG.md)。
 
 ### 卸载
 
-| 方式 | 操作 |
-| --- | --- |
-| 插件页 | 打开「莱茵生命开屏动画」，点击 **卸载**。只想暂时停用时，关闭开关即可 |
-| dsh agent | 对 agent 说「卸载这个插件」，它会按 `AGENTS.md` 执行 |
-| 命令行 | 先退出 Harness，再运行 `dsh plugin --profile desktop remove dsh-rhine-splash` |
+在 **插件** 页面打开「莱茵生命开屏动画」，点击 **卸载**，然后重启 Harness。如果只是想暂时停用，关闭开关即可。
 
-卸载或停用后，重启 Harness 生效。
+也可以退出 Harness 后，在终端中运行：
 
-## 界面主题与品牌
+```bash
+dsh plugin --profile desktop remove dsh-rhine-splash
+```
 
-除了开屏动画，插件还会把整个 DeepSeek Harness 界面换成莱茵风格。两项都可以单独关闭。
+## 界面主题与品牌标志
 
-- **界面主题**（`uiTheme`）：只替换 dsh 的设计变量，不改任何组件样式，跟随 Harness 的深浅色切换，Harness 更新后也不易失效。
-  - 灰阶：偏蓝的冷灰换成暖白（浅色）/ 暖炭黑（深色）。
-  - 品牌色：DeepSeek 蓝换成莱茵橙，用于链接、信息按钮、你发出的消息气泡、侧栏选中项等。
-  - 形状：圆角收小并改为切角；开关、圆点、胶囊标签仍保持圆形。
-- **品牌替换**（`brand`）：侧栏左上角的标志与名称、空会话页的大标志换成莱茵风设计，两套 Logo 可切换（`logo`）：
-  - `plate` 模块铭牌：黑色切角方块 + 几何「DH」+ 橙色角标，呼应视频里的部门铭牌。
-  - `cell` 开放细胞：缺一条边的粗线六边形 + 橙色核心方点，最简约。
-  - 关闭品牌替换时显示官方的鲸鱼标志与字标。本插件接管了官方品牌插件的位置，关闭或卸载本插件后官方品牌自动恢复。
+除了开屏动画，插件还会调整 Harness 主界面的外观。
+
+界面主题会把默认的冷灰色调换成暖白（浅色模式）和暖炭黑（深色模式），把 DeepSeek 蓝换成莱茵橙，并把圆角改为切角。主题会跟随 Harness 的深浅色设置。它只修改 Harness 的设计变量，不改动具体组件，因此 Harness 更新后通常仍能正常显示。
+
+品牌标志会替换侧栏左上角和空白会话页中的 Logo，有两种样式可选：
+
+- **模块铭牌**（`plate`，默认）：黑色切角方块上的几何字母「DH」，右上角带一个橙色标记。
+- **开放细胞**（`cell`）：缺了一条边的六边形，中间是一个橙色方点。
+
+关闭品牌标志，或者停用、卸载本插件后，Harness 会恢复官方的鲸鱼标志。
 
 ## 配置
 
-### 在 Harness 内修改（推荐）
+### 在 Harness 中设置
 
-- **插件页配置页**：侧栏 **插件** → 「莱茵生命开屏动画」→ 组件「莱茵生命开屏动画」，图形化修改全部选项，并可预览开屏。
-- **`/splash` 命令**：在已有会话的输入框键入 `/splash`，可以立即预览开屏、开关开屏、切换退场、开关界面主题与品牌、切换 Logo。新会话发送第一条消息之前，Harness 尚未加载命令目录，`/` 菜单中暂时只有技能。
-- 修改会写入 profile 的配置，**重启 Harness 后生效**；预览立即可见。
-- 只想关掉开屏、保留界面主题：关闭「开屏动画」（`enabled: false`）即可，不必停用整个插件。
+在 **插件** 页面打开「莱茵生命开屏动画」，再点击同名组件，即可进入设置页面。你可以在这里修改所有选项，并随时预览开屏动画。
+
+在会话中输入 `/splash`，也可以预览开屏动画或修改常用选项。新建的会话在发送第一条消息之前，不会显示 `/splash` 命令。
+
+设置会在下次启动 Harness 时生效，预览则会立即播放。如果只想关闭开屏动画、保留界面主题，关闭「开屏动画」开关即可。
 
 ### 编辑配置文件
 
-在 `~/.dsh/profiles/desktop/cordis.patch.yml`（网页版为 `profiles/web/cordis.patch.yml`）末尾按插件 id 追加覆盖项，保留文件原有内容，保存后重启 Harness：
+你也可以直接编辑 `~/.dsh/profiles/desktop/cordis.patch.yml`（网页版为 `~/.dsh/profiles/web/cordis.patch.yml`）。保留文件原有内容，在末尾添加类似下面的配置，保存后重启 Harness：
 
 ```yaml
 - id: rhine-splash
   config:
-    title: 'DEEPSEEK HARNESS'
-    accentLight: '#e46f24'
     exit: iris
     duration: 5000
 ```
 
-- 这一层在所有组合包之后应用，对任何安装来源都有效。
-- 覆盖会**替换整个 `config` 块**，没有写出的键恢复为默认值。
-- 本地目录安装时，也可以直接修改仓库内 `cordis.patch.yml` 的 `config` 块。
-- 未知键会被忽略，无效值回退为默认值。
-- 时长须写成 YAML 数字，开关须写成布尔值；颜色值必须加引号，否则 `#` 之后的内容会被 YAML 当作注释。
+请注意：
 
-| 键 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `enabled` | 布尔 | `true` | 开屏动画开关。关闭后界面主题与品牌仍生效，`/splash` 仍可预览 |
-| `uiTheme` | 布尔 | `true` | 莱茵界面主题开关 |
-| `brand` | 布尔 | `true` | 品牌替换开关（侧栏标志与名称、空会话页大标志） |
-| `logo` | 枚举 | `plate` | Logo 方案：`plate`（模块铭牌）或 `cell`（开放细胞） |
-| `title` | 字符串 | `DEEPSEEK HARNESS` | 主标题。去除首尾空白，最多 80 个字符 |
-| `subtitle` | 字符串 | `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION` | 副标题。规则同 `title` |
-| `code` | 字符串 | `RL-DSH/0.2` | 角落 HUD 编号。规则同 `title` |
-| `accentLight` | 颜色 | `#e46f24` | 浅色主题的强调色，`#` 后接 3–8 位十六进制字符 |
-| `accentDark` | 颜色 | `#f0893e` | 深色主题的强调色，格式同 `accentLight` |
-| `theme` | 枚举 | `auto` | `auto` 跟随 Harness 的外观设置；也可固定为 `light` 或 `dark` |
-| `exit` | 枚举 | `random` | 退场动画：`random`、`doors`、`decode`、`glitch` 或 `iris`，见[退场动画](#退场动画) |
-| `duration` | 数字（毫秒） | `4500` | 开屏最短时长，范围 0–15000。时间轴随之等比缩放 |
-| `maxWait` | 数字（毫秒） | `8000` | 最长等待时长，范围 `duration`–20000。到时无论主界面是否就绪都会退场 |
-| `skippable` | 布尔 | `true` | 是否允许点击或按键跳过 |
-| `replayOnReload` | 布尔 | `false` | 刷新页面时是否重新播放 |
+- 这里的 `config` 会整体替换默认配置，没有写出的选项会恢复为默认值。
+- 颜色值需要加引号，例如 `'#e46f24'`，否则 `#` 后面的内容会被当作注释。
+- 无法识别的选项和无效的值会被忽略，并使用默认值。
+- 如果是从本地目录安装的，也可以直接修改仓库中 `cordis.patch.yml` 里的 `config`。
 
-## 动画说明
-
-### 时间轴
-
-动画分为两幕，由纯 CSS 动画、内联 SVG 和程序生成的位图（板条阵列背景、显微样本图）组成。下表时间点基于默认的 `duration: 4500`，修改 `duration` 后按比例缩放。
-
-| 时间 | 阶段 | 画面 |
+| 选项 | 默认值 | 说明 |
 | --- | --- | --- |
-| 0–0.5 秒 | 框架 | 顶部状态栏（`REQUESTING ACCESS`）、四角括号、左上字标和左侧 01–05 索引栏依次就位；背景板条阵列与大圆弧轨道缓慢进场 |
-| 0.25–1.45 秒 | 第一幕 · 权限验证 | `REQUESTING ACCESS...` 逐字解码为宽字距的 `PERMISSION AUTHORIZED`；外围 HUD 按顺时针依次启动：右上显微样本 → 右下警示条与进度 → 左下档案框 |
-| 1.25 秒 | 授权节拍 | 状态栏切换为 `ACCESS GRANTED`，索引 02 点亮，`• ID CONFIRMED` 升起，两个橙点同时闪烁 |
-| 1.4–2.1 秒 | 转场 | 字母向两侧散开，一道橙色细线从中心展开，交接给徽记的基准线 |
-| 1.6–3.3 秒 | 第二幕 · 欢迎进入终端 | 徽记描线，毛玻璃面板展开，依次显示 `WELCOME TO`、反白标题和 `INTERNAL TERMINAL`；标题下方的 LINK 链路条随会话进度推进（读数头、指针与流光）；模块方块依次翻入（索引 03），会话建立（索引 04） |
-| 3.3 秒 | 就绪节拍 | 状态栏切换为 `TERMINAL READY`，四角括号闪烁橙色，索引 05 点亮，进度与链路条到达 97% |
-| 末尾 0.7–1.1 秒 | 退场 | 两个计量条冲满，随后播放一种退场动画 |
+| `enabled` | `true` | 是否播放开屏动画。关闭后，界面主题和品牌标志不受影响 |
+| `uiTheme` | `true` | 是否使用莱茵界面主题 |
+| `brand` | `true` | 是否替换品牌标志 |
+| `logo` | `plate` | 标志样式：`plate`（模块铭牌）或 `cell`（开放细胞） |
+| `title` | `DEEPSEEK HARNESS` | 开屏主标题，最多 80 个字符 |
+| `subtitle` | `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION` | 开屏副标题，最多 80 个字符 |
+| `code` | `RL-DSH/0.2` | 开屏角落显示的编号，最多 80 个字符 |
+| `accentLight` | `'#e46f24'` | 开屏动画在浅色模式下的强调色，不影响界面主题 |
+| `accentDark` | `'#f0893e'` | 开屏动画在深色模式下的强调色，不影响界面主题 |
+| `theme` | `auto` | 开屏的深浅色：`auto` 跟随 Harness，也可以设为 `light` 或 `dark` |
+| `exit` | `random` | 退场动画：`random`（随机）、`doors`、`decode`、`glitch` 或 `iris`，参见[退场动画](#退场动画) |
+| `duration` | `4500` | 开屏的最短播放时长，单位为毫秒，范围 0–15000。动画节奏会随之整体缩放 |
+| `maxWait` | `8000` | 等待主界面加载的最长时间，单位为毫秒，不小于 `duration`，最大 20000 |
+| `skippable` | `true` | 是否允许跳过开屏动画 |
+| `replayOnReload` | `false` | 刷新页面时是否重新播放 |
+
+## 开屏动画
+
+开屏动画分为两段。第一段是身份验证：屏幕中央的 `REQUESTING ACCESS` 逐字变成 `PERMISSION AUTHORIZED`，四周的状态栏、样本窗口和档案信息依次出现。第二段是欢迎页：屏幕中央显示 `WELCOME TO DEEPSEEK HARNESS`，下方的模块方块依次翻入，加载进度接近 100%。最后播放一段退场动画，进入主界面。
 
 ### 退场动画
 
-默认每次启动随机选择一种，且不与上一次重复；也可以通过 `exit` 固定为其中一种。开屏总时长保持不变：退场动画越长，开始退场的时间就越早。
+默认每次随机播放一种，并且不会和上一次重复。你也可以用 `exit` 选项固定其中一种：
 
-| `exit` | 名称 | 时长 | 画面 |
-| --- | --- | --- | --- |
-| `doors` | 舱门 | 0.82 秒 | 内容淡出，橙色光缝展开，上下两扇舱门分开 |
-| `decode` | 代码消散 | 1.1 秒 | 第一道前沿把画面「编码」为满屏等宽字符；第二道锯齿前沿让字符逐格闪烁清除，前沿处高亮为橙色 |
-| `glitch` | 故障撕裂 | 0.72 秒 | 画面切分为 7 条水平条带，经过三次随机错位并伴有红青色分离，随后随机闪烁消失，同时扫过橙色扫描条 |
-| `iris` | 六边形光圈 | 1.1 秒 | 先用 0.3 秒把视线引向徽记：周围画面压暗，橙色基准线收回徽记，徽记六边形蓄能并扩散出三道六边形脉冲；随后从徽记中心打开六边形孔径，双层橙色描边沿孔边扩张至全屏 |
+| `exit` | 名称 | 效果 |
+| --- | --- | --- |
+| `doors` | 舱门 | 一道橙色光缝展开，画面像舱门一样上下分开 |
+| `decode` | 代码消散 | 画面变成满屏字符，然后逐格清除 |
+| `glitch` | 故障撕裂 | 画面被切成横条，错位、闪烁后消失 |
+| `iris` | 六边形光圈 | 周围画面变暗，中央徽记亮起，随后从徽记处打开一个六边形窗口 |
 
-> [!NOTE]
-> 系统开启「减弱动态效果」时，无论 `exit` 如何配置，都只做简单淡出。
+### 播放规则
 
-### 行为细节
-
-- **退场时机**：播放满 `duration` 且 Harness 主界面已渲染后才退场。主界面迟迟未出现时，最多等待 `maxWait`；另有硬性兜底，覆盖层不会卡住界面。
-- **跳过**：点击任意位置，或按 <kbd>Esc</kbd>、<kbd>Enter</kbd>、<kbd>Space</kbd>。顶部 44 px 保留为窗口拖动区。
-- **每次启动只播放一次**：按 <kbd>⌘</kbd> + <kbd>R</kbd> 刷新页面不会重播；设置 `replayOnReload: true` 后会重播。
-- **减弱动态效果**：系统开启该选项时，跳过第一幕，只显示静态的第二幕，约 0.9 秒后淡出。
-- **深浅色**：`theme: auto` 时读取 Harness 的外观设置（**设置 → 通用 → 外观**）；脱离 Harness 运行（如预览页）时跟随系统。
-- **小窗口**：窗口较窄或较矮时，依次隐藏显微样本、档案框、索引栏和水印，保证主体内容不重叠。
+- 开屏动画至少播放 `duration` 设定的时长，并在主界面加载完成后退场。如果主界面一直没有加载完成，最多等待 `maxWait` 后也会退场。
+- 点击屏幕任意位置，或者按 <kbd>Esc</kbd>、<kbd>Enter</kbd>、空格键，都可以跳过动画。
+- 每次启动只播放一次，刷新页面不会重播。如果希望刷新时也播放，请将 `replayOnReload` 设为 `true`。
+- 如果系统开启了「减弱动态效果」，开屏只显示静态画面，并在大约 1 秒后淡出。
+- 窗口较小时，部分装饰元素会自动隐藏。
 
 ## 常见问题
 
-**安装后没有看到开屏动画？**
+**安装后没有看到开屏动画**
 
-开屏动画只在启动时播放，且每次启动只播放一次。请确认插件已启用，然后用 <kbd>⌘</kbd> + <kbd>Q</kbd> 完全退出 Harness 再重新打开；仅关闭窗口或刷新页面不会触发。
+开屏动画只在 Harness 启动时播放。请确认插件已启用，然后按 <kbd>⌘</kbd> + <kbd>Q</kbd> 完全退出 Harness，再重新打开。只关闭窗口或刷新页面，不会触发开屏动画。
 
-**命令行提示 `Open DeepSeek Harness Desktop once to initialize its profile, then fully quit it`？**
+**命令行提示 `Open DeepSeek Harness Desktop once to initialize its profile, then fully quit it`**
 
-说明 Harness 从未启动过，或者仍在运行。先打开一次 Harness，再完全退出，然后重新执行命令。
+这说明 Harness 还没有初始化过配置，或者仍在运行。请先打开一次 Harness，然后完全退出，再重新运行命令。
 
-**终端找不到 `dsh` 命令？**
+**终端里找不到 `dsh` 命令**
 
-在菜单栏选择 **DeepSeek Harness → 管理 dsh 命令… → 安装**，或者直接使用完整路径：
+在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…** > **安装**。也可以直接使用完整路径：
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "<来源>"
 ```
 
-**插件页从 GitHub 安装失败？**
+**从 GitHub 安装失败**
 
-下载 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 中的 `dsh-rhine-splash-<版本>.tgz`，改用它的绝对路径安装。
+通常是因为网络无法访问 GitHub。请从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载发布包，改用文件路径安装。
 
-**插件导致 Harness 启动异常？**
+**安装后 Harness 无法正常启动**
 
-Harness 会自动备份 patch 并禁用第三方组合包，便于恢复。图片素材缺失时，插件只记录警告，动画照常播放，只是缺少对应背景。
+Harness 检测到启动异常时，会自动备份配置并停用第三方组合包。你可以在插件页面卸载本插件，然后重新启动 Harness。
 
 ## 开发
 
 ### 工作原理
 
-组合包分为两半：
+本组合包由两部分组成：
 
-- **宿主端** `lib/index.js`：Harness 启动时，通过 `webserver/index-inject` 事件向页面注入样式行和 body 脚本，因此开屏动画会在 React 外壳启动之前出现。注入使用默认的追加顺序，位于主题引导行之后，不使用 `prepend`。图片素材以 data URI 形式内联进样式；界面主题 `lib/theme.css` 与品牌素材 `lib/brand/` 也在这里注入。
-- **浏览器端** `lib/client.js`：占用侧栏与空会话页的品牌插槽（同时由 patch 停用官方 `ui-brand-official`），并注册插件页配置页与 `/splash` 命令。
+- `lib/index.js` 运行在 Harness 的服务端。Harness 生成页面时，它通过 `webserver/index-inject` 事件把开屏动画、界面主题和品牌素材注入页面，因此开屏动画能在主界面加载之前出现。
+- `lib/client.js` 运行在浏览器中，负责显示品牌标志，并提供设置页面和 `/splash` 命令。为了替换标志，`cordis.patch.yml` 会停用官方的 `ui-brand-official` 插件。
 
 ### 目录结构
 
 ```text
 .
-├── AGENTS.md              # 面向模型的安装与开发说明（dsh agent 会自动读取）
-├── CHANGELOG.md           # 更新日志
-├── package.json           # 组合包元数据与 npm 脚本
-├── cordis.patch.yml       # 插件插入行与默认配置
-├── icon.svg               # 组合包图标
-├── assets/                # 板条阵列背景（浅色 / 深色）与显微样本图
+├── AGENTS.md             # 写给 AI agent 的安装和开发说明
+├── CHANGELOG.md          # 更新日志
+├── cordis.patch.yml      # 插件注册和默认配置
+├── icon.svg              # 插件图标
+├── assets/               # 开屏背景图和样本图
 ├── lib/
-│   ├── index.js           # 宿主端入口：配置结构、校验与注入
-│   ├── client.js          # 浏览器端：品牌插槽、插件页配置页、/splash 命令
-│   ├── theme.css          # 莱茵界面主题（只覆盖设计变量）
-│   ├── brand/             # 两套 Logo 与字标
-│   ├── splash.css         # 开屏样式与时间轴
-│   └── splash.js          # 开屏动画、退场动画与 replay()
-├── locale/                # 插件页显示的中英文名称与简介
-├── preview/               # 开屏预览（index.html）与品牌预览（brand.html）
-├── screenshots/           # README 截图
-├── scripts/
-│   ├── test-host.mjs      # 宿主端测试（无依赖）
-│   └── render-assets.mjs  # 图片素材生成脚本
-├── .github/
-│   └── RELEASE_TEMPLATE.md  # Release 说明模板
-└── .claude/launch.json    # 预览服务启动配置
+│   ├── index.js          # 服务端入口：读取配置并注入页面
+│   ├── client.js         # 浏览器端：品牌标志、设置页面和 /splash 命令
+│   ├── theme.css         # 界面主题
+│   ├── brand/            # 两种 Logo 和字标
+│   ├── splash.css        # 开屏样式
+│   └── splash.js         # 开屏动画和退场动画
+├── locale/               # 插件页显示的名称和简介
+├── preview/              # 本地预览页面
+├── screenshots/          # README 中的截图
+└── scripts/              # 测试和素材生成脚本
 ```
 
 ### 本地预览
+
+预览需要 Python 3。运行：
 
 ```bash
 npm run preview
 ```
 
-然后打开 <http://localhost:4173/preview/>。预览服务基于 Python 3，按 <kbd>Ctrl</kbd> + <kbd>C</kbd> 停止。
+然后在浏览器中打开 <http://localhost:4173/preview/>。页面底部可以切换退场动画、深浅色、时长等选项，按 <kbd>R</kbd> 可以重播。也可以通过 URL 参数指定，例如 `?theme=dark&exit=iris&duration=6000`。
 
-- 页面底部的控制栏可以切换退场动画、深浅色、时长、模拟主界面就绪时间（立即 / 1.2 秒 / 6 秒 / 永不）以及减弱动态效果。
-- 按 <kbd>R</kbd> 或点击 **重播** 再次播放。
-- 支持 URL 参数 `theme`、`exit`、`duration`、`ready`、`reduced`，例如 `?theme=dark&duration=6000&ready=-1`。
-
-预览页只用于检查动画外观；宿主注入行为由测试和实际运行的 Harness 验证。
+预览页面只用来检查动画效果。注入页面的逻辑请通过测试和实际运行 Harness 来验证。
 
 ### 测试
 
+测试需要 Node.js：
+
 ```bash
-npm test                    # 宿主端测试
-node --check lib/splash.js  # 浏览器脚本语法检查
+npm test
+node --check lib/splash.js
 ```
-
-测试覆盖默认值、配置校验与范围限制、HTML 转义、注入顺序和宿主注册：
-
-- 动画资源尚未生成时，用模拟资源验证注入，并确认宿主会安全跳过注册。
-- 资源齐全时，触发实际注册的处理函数，检查样式行与 body 脚本行。
 
 ### 图片素材
 
-`assets/` 中的三张图片由 `scripts/render-assets.mjs` 程序化生成，只依赖 Node 与 macOS 自带的 `sips`，结果可复现。
+`assets/` 中的背景图和样本图由 `scripts/render-assets.mjs` 生成，需要 Node.js 和 macOS 自带的 `sips`。
 
-| 文件 | 尺寸 | 内容 |
-| --- | --- | --- |
-| `bars-light.jpg`、`bars-dark.jpg` | 3200 × 1800（2 倍分辨率，适配 Retina 屏幕） | 透视立板阵列背景，左侧 35% 为纯背景色 |
-| `specimen.jpg` | 320 × 320 | 扫描电镜风格的细胞样本，在显微圆窗中放大至 170% 显示 |
+运行 `npm run assets` 会重新生成全部图片。这一步大约需要 30 秒和 1 GB 内存，并会覆盖现有文件。如果只想重新生成样本图，运行 `node scripts/render-assets.mjs specimen`。
 
-- 重新生成全部素材：`npm run assets`。耗时约 30 秒，峰值内存约 1 GB，并会覆盖 `assets/`。
-- 只重新生成样本图：`node scripts/render-assets.mjs specimen`。
+### 修改动画
 
-### 动效约定
+修改开屏动画时，请遵循以下约定：
 
-- 统一使用四条缓动曲线：进场、描线擦除、退场、弹出。
-- 所有循环动画（呼吸灯、光标、扫描线、警示条、旋转）都按 1.2 秒基础节拍的整数倍运行。
-- 节拍时间点定义在 `lib/splash.css` 顶部的 `--B`、`--G`、`--R` 与 `lib/splash.js` 的 `BEAT` 中，两处必须保持一致。
-- 所有 CSS 限定在 `#rhine-splash` 作用域内，类名使用 `rl-` 前缀。
-- 新增退场动画时，在 `lib/splash.js` 的 `EXITS` 中注册。
+- `lib/splash.css` 顶部的 `--B`、`--G`、`--R` 和 `lib/splash.js` 中的 `BEAT` 定义的是同一组时间点，修改时需要同步。
+- 循环动画的周期使用 1.2 秒的整数倍。
+- 所有样式都写在 `#rhine-splash` 下，类名以 `rl-` 开头。
+- 新的退场动画需要在 `lib/splash.js` 的 `EXITS` 中注册。
 
-### 发布流程
+### 发布新版本
 
-1. 在分支上开发，用 `git merge --no-ff` 合并回 `main`。
-2. 更新 `package.json` 的 `version`，并把 `CHANGELOG.md` 中「未发布」小节整理为新版本。
-3. 运行 `npm test` 与 `node --check lib/splash.js`。
-4. 打标签并推送：`git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`。
-5. 运行 `npm pack` 生成 `dsh-rhine-splash-X.Y.Z.tgz`。
-6. 在 GitHub 新建 Release，按 [`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md) 填写标题与正文，并上传 tgz。
+1. 在分支上开发，完成后用 `git merge --no-ff` 合并回 `main`。
+2. 更新 `package.json` 中的 `version`，并把 `CHANGELOG.md` 中「未发布」的内容整理到新版本下。
+3. 运行测试。
+4. 创建并推送版本标签：`git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`。
+5. 运行 `npm pack`，生成 `dsh-rhine-splash-X.Y.Z.tgz`。
+6. 在 GitHub 上新建 Release，参考 [`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md) 填写说明，并上传 tgz 文件。
 
 ## 声明
 
-- 本项目是非官方的第三方组合包，与《明日方舟》的权利方鹰角网络（Hypergryph）没有任何关联。
-- 视觉语言参考《明日方舟》特别映像「莱茵生命：访问」。所有图形与图片均为原创或程序生成，不包含《明日方舟》官方 Logo、角色或美术素材。
-- 《明日方舟》及相关名称、标识归其权利人所有。
+本项目是非官方的爱好者作品，与《明日方舟》的权利方鹰角网络（Hypergryph）没有关联。设计参考了特别映像「莱茵生命：访问」，所有图形和图片均为原创或程序生成，不包含官方 Logo、角色或美术素材。《明日方舟》及相关名称和标识归其权利人所有。
 
 ## 许可证
 
