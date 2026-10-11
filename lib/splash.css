@@ -485,13 +485,17 @@
   stroke-linecap: butt;
 }
 
-#rhine-splash .rl-e-arcs {
+#rhine-splash .rl-e-bezel,
+#rhine-splash .rl-e-orbit,
+#rhine-splash .rl-e-mech {
   transform-box: view-box;
   transform-origin: 110px 110px;
 }
 
 #rhine-splash .rl-e-ring { stroke: var(--rl-ink); stroke-width: 1.2; stroke-dasharray: 1; stroke-dashoffset: 0; }
 #rhine-splash .rl-e-ticks { stroke: var(--rl-ink); stroke-width: 1.2; }
+#rhine-splash .rl-e-bezel { stroke: var(--rl-line-strong); stroke-width: 1; }
+#rhine-splash .rl-e-lead { fill: var(--rl-accent); opacity: 0; }
 #rhine-splash .rl-e-arc { stroke: var(--rl-accent); stroke-width: 3.6; }
 #rhine-splash .rl-e-hex,
 #rhine-splash .rl-e-seal { stroke: var(--rl-ink); stroke-width: 6; stroke-linejoin: miter; stroke-dasharray: 1; stroke-dashoffset: 0; }
@@ -1159,16 +1163,28 @@
 #rhine-splash.is-playing .rl-code-row { animation: rl-wipe calc(480 * var(--t)) var(--e-io) calc(1260 * var(--t)) both; }
 #rhine-splash.is-playing .rl-hint { animation: rl-hint calc(600 * var(--t)) var(--e-out) calc(1700 * var(--t)) both; }
 
-/* act B: emblem — the ring, then the open cell draws itself, the arc
-   swings round to face the opening, and the core lands */
-#rhine-splash.is-playing .rl-e-ring { animation: rl-draw calc(820 * var(--t)) var(--e-io) calc(var(--B) * var(--t)) both; }
+/* act B: emblem — an accent head draws the ring while the bezel swings in;
+   the dial spins half a turn into place as the cell draws itself and the
+   core lands. Then the bezel drifts and the dial clicks round 60° a beat. */
+#rhine-splash.is-playing .rl-e-ring { animation: rl-draw calc(760 * var(--t)) var(--e-io) calc(var(--B) * var(--t)) both; }
+#rhine-splash.is-playing .rl-e-orbit { animation: rl-spin calc(760 * var(--t)) var(--e-io) calc(var(--B) * var(--t)) both; }
+#rhine-splash.is-playing .rl-e-lead { animation: rl-e-lead calc(760 * var(--t)) linear calc(var(--B) * var(--t)) both; }
 #rhine-splash.is-playing .rl-e-ticks { animation: rl-fade calc(400 * var(--t)) var(--e-out) calc((var(--B) + 300) * var(--t)) both; }
-#rhine-splash.is-playing .rl-e-hex { animation: rl-draw calc(760 * var(--t)) var(--e-io) calc((var(--B) + 200) * var(--t)) both; }
-#rhine-splash.is-playing .rl-e-arcs { animation: rl-e-arc-in calc(900 * var(--t)) var(--e-io) calc((var(--B) + 450) * var(--t)) both; }
-#rhine-splash.is-playing .rl-e-arc { animation: rl-arc calc(620 * var(--t)) var(--e-io) calc((var(--B) + 450) * var(--t)) both; }
+#rhine-splash.is-playing .rl-e-bezel {
+  animation:
+    rl-e-bezel-in calc(900 * var(--t)) var(--e-out) calc((var(--B) + 100) * var(--t)) both,
+    rl-spin-rev calc(var(--beat) * 30) linear calc((var(--B) + 1000) * var(--t)) infinite;
+}
+#rhine-splash.is-playing .rl-e-mech {
+  animation:
+    rl-e-mech-in calc(1000 * var(--t)) var(--e-out) calc((var(--B) + 150) * var(--t)) both,
+    rl-e-step calc(var(--beat) * 6) var(--e-io) calc((var(--B) + 1400) * var(--t)) infinite;
+}
+#rhine-splash.is-playing .rl-e-hex { animation: rl-draw calc(800 * var(--t)) var(--e-io) calc((var(--B) + 150) * var(--t)) both; }
+#rhine-splash.is-playing .rl-e-arc { animation: rl-arc calc(600 * var(--t)) var(--e-io) calc((var(--B) + 450) * var(--t)) both; }
 #rhine-splash.is-playing .rl-e-core {
   animation:
-    rl-pop calc(360 * var(--t)) var(--e-pop) calc((var(--B) + 900) * var(--t)) both,
+    rl-e-core-in calc(420 * var(--t)) var(--e-pop) calc((var(--B) + 800) * var(--t)) both,
     rl-pulse calc(var(--beat) * 2) ease-in-out calc((var(--B) + 1400) * var(--t)) infinite;
 }
 #rhine-splash.is-playing .rl-gl--h { animation: rl-grow-x calc(900 * var(--t)) var(--e-io) calc((var(--B) + 150) * var(--t)) both; }
@@ -1432,7 +1448,21 @@
 
 @property --rl-iris-s { syntax: '<number>'; inherits: true; initial-value: 0; }
 @keyframes rl-iris { from { --rl-iris-s: 0; } to { --rl-iris-s: var(--rl-iris-max); } }
-@keyframes rl-e-arc-in { from { transform: rotate(-150deg); } }
+@keyframes rl-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes rl-e-lead { 0% { opacity: 0; } 6%, 82% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes rl-e-bezel-in { from { opacity: 0; transform: rotate(60deg); } }
+@keyframes rl-e-mech-in { from { transform: rotate(-180deg); } }
+@keyframes rl-e-core-in { from { transform: scale(0) rotate(-90deg); } }
+/* Six 60° clicks per loop: each moves for 40% of a beat, then holds. */
+@keyframes rl-e-step {
+  0% { transform: rotate(0deg); }
+  6.667%, 16.667% { transform: rotate(60deg); }
+  23.333%, 33.333% { transform: rotate(120deg); }
+  40%, 50% { transform: rotate(180deg); }
+  56.667%, 66.667% { transform: rotate(240deg); }
+  73.333%, 83.333% { transform: rotate(300deg); }
+  90%, 100% { transform: rotate(360deg); }
+}
 @keyframes rl-seal { to { stroke-dashoffset: 0; } }
 @keyframes rl-iris-prime { 45% { transform: scale(1.1); } 100% { transform: scale(0.96); } }
 @keyframes rl-iris-pull-x { to { transform: scaleX(0); } }
