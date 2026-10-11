@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apply, buildAssetStyle, buildInjections, DEFAULTS, name, resolveConfig } from '../lib/index.js';
+import { apply, buildAssetStyle, buildInjections, DEFAULTS, name, readConfig, resolveConfig } from '../lib/index.js';
 
 // Configuration and injection tests use fake assets so concurrent asset authoring
 // does not prevent validation of the host plugin.
@@ -100,90 +100,121 @@ assert.equal(allImageStyle, '#rhine-splash{--rl-img-bars-light:url("data:image/j
 const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((match) => Buffer.from(match[1], 'base64'));
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
+for (const key of ['enabled', 'uiTheme', 'brand']) {
+  assert.equal(DEFAULTS[key], true);
+  assert.equal(resolveConfig({ [key]: false })[key], false);
+  assert.equal(resolveConfig({ [key]: true })[key], true);
+  for (const value of ['false', 0, null, {}]) assert.equal(resolveConfig({ [key]: value })[key], true);
+}
+assert.deepEqual(readConfig(), DEFAULTS);
+assert.deepEqual(readConfig(Object.fromEntries(Object.entries(DEFAULTS).map(([key, value]) => [key, { get: () => value }]))), DEFAULTS);
+assert.deepEqual(readConfig(Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, { get: () => value }]))), resolved);
+let liveEnabled = false;
+assert.equal(readConfig({ enabled: { get: () => liveEnabled } }).enabled, false);
+liveEnabled = true;
+assert.equal(readConfig({ enabled: { get: () => liveEnabled } }).enabled, true);
+
 const fakeAssets = Object.freeze({
   css: '/* host test CSS */\n</StYlE>',
   js: 'globalThis.__RHINE_SPLASH_TEST__ = true;',
 });
 const unsafeConfig = Object.freeze(resolveConfig({ title: '</script>\u2028middle\u2029end' }));
+const unsafeBrand = { mark: '</script>\u2028mark', hero: '<svg>\u2029</svg>', name: '</script>' };
 const rows = buildInjections(unsafeConfig, fakeAssets);
 assert.equal(rows.length, 2);
 assert.deepEqual(rows[0], { kind: 'style', text: '/* host test CSS */\n<\\/style>' });
 assert.ok(!/<\/style/i.test(rows[0].text));
 assert.equal(rows[1].kind, 'script');
 assert.equal(rows[1].placement, 'body');
-assert.ok(rows[1].text.startsWith('globalThis.__RHINE_SPLASH__='));
+assert.ok(rows[1].text.startsWith('globalThis.__RHINE_BRAND__='));
+assert.ok(rows[1].text.includes(';globalThis.__RHINE_SPLASH__='));
 assert.ok(rows[1].text.endsWith(';\n' + fakeAssets.js));
 assert.ok(rows[1].text.includes('\\u003c/script>'));
-assert.ok(!rows[1].text.includes('</script>'));
-assert.ok(rows[1].text.includes('\\u2028'));
-assert.ok(rows[1].text.includes('\\u2029'));
-assert.ok(!rows[1].text.includes('\u2028'));
-assert.ok(!rows[1].text.includes('\u2029'));
-const serializedConfig = rows[1].text.slice(
-  'globalThis.__RHINE_SPLASH__='.length,
-  rows[1].text.indexOf(';\n'),
-);
-assert.deepEqual(JSON.parse(serializedConfig), unsafeConfig);
+for (const script of [rows[1].text, buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text]) {
+  assert.ok(!script.includes('</script>'));
+  assert.ok(script.includes('\\u2028'));
+  assert.ok(script.includes('\\u2029'));
+  assert.ok(!script.includes('\u2028'));
+  assert.ok(!script.includes('\u2029'));
+}
+function globalsOf(script) {
+  const brandStart = 'globalThis.__RHINE_BRAND__='.length;
+  const delimiter = ';globalThis.__RHINE_SPLASH__=';
+  const configStart = script.indexOf(delimiter) + delimiter.length;
+  return {
+    brand: JSON.parse(script.slice(brandStart, script.indexOf(delimiter))),
+    config: JSON.parse(script.slice(configStart, script.indexOf(';\n', configStart))),
+  };
+}
+assert.deepEqual(globalsOf(rows[1].text), { brand: { mark: '', hero: '', name: '' }, config: unsafeConfig });
+assert.deepEqual(globalsOf(buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text).brand, unsafeBrand);
 assert.deepEqual(buildInjections(unsafeConfig, fakeAssets), rows);
 assert.deepEqual(buildInjections(unsafeConfig, { ...fakeAssets, images: '' }), rows);
 assert.deepEqual(buildInjections(unsafeConfig, { ...fakeAssets, images: allImageStyle }), [
-  { kind: 'style', text: allImageStyle },
-  ...rows,
+  { kind: 'style', text: allImageStyle }, ...rows,
 ]);
+const themeCss = '/* optional theme */</style>';
+const themedAssets = { ...fakeAssets, themeCss, images: allImageStyle };
+assert.deepEqual(buildInjections(unsafeConfig, themedAssets), [
+  { kind: 'style', text: '/* optional theme */<\\/style>' }, { kind: 'style', text: allImageStyle }, ...rows,
+]);
+assert.deepEqual(buildInjections({ ...unsafeConfig, uiTheme: false }, themedAssets).map((row) => row.text), [allImageStyle, rows[0].text,
+  buildInjections({ ...unsafeConfig, uiTheme: false }, fakeAssets)[1].text]);
+assert.equal(buildInjections(DEFAULTS, { ...fakeAssets, themeCss: '' }).length, 2);
+const disabledRows = buildInjections(resolveConfig({ enabled: false }), fakeAssets);
+assert.equal(disabledRows.length, 2);
+assert.equal(disabledRows[0].kind, 'style');
+assert.equal(disabledRows[1].kind, 'script');
+assert.equal(globalsOf(disabledRows[1].text).config.enabled, false);
 
-// Only inspect asset existence: do not create or change the other author's files.
-const assetsPresent = existsSync(new URL('../lib/splash.css', import.meta.url))
-  && existsSync(new URL('../lib/splash.js', import.meta.url));
-const repoImageStyle = buildAssetStyle({
-  barsLight: readFileSync(new URL('../assets/bars-light.jpg', import.meta.url)),
-  barsDark: readFileSync(new URL('../assets/bars-dark.jpg', import.meta.url)),
-  specimen: readFileSync(new URL('../assets/specimen.jpg', import.meta.url)),
-});
-const subscriptions = [];
-const warnings = [];
-const ctx = {
-  on(event, handler, ...options) {
-    subscriptions.push({ event, handler, options });
-  },
-  logger(scope) {
-    assert.equal(scope, 'rhine-splash');
-    return { warn(message) { warnings.push(message); } };
-  },
-};
-assert.doesNotThrow(() => apply(ctx, { title: 'Host test', theme: 'dark' }));
-if (assetsPresent) {
-  assert.equal(warnings.length, 0);
-  assert.equal(subscriptions.length, 1);
-  const subscription = subscriptions[0];
-  assert.equal(subscription.event, 'webserver/index-inject');
-  assert.deepEqual(subscription.options, []);
-  const themeRow = { kind: 'style', text: '/* existing theme bootstrap */' };
-  const table = [themeRow];
-  subscription.handler(table);
-  assert.equal(table[0], themeRow);
-  assert.equal(table.length, 4); // Existing theme row plus three splash rows.
-  assert.deepEqual(table[1], { kind: 'style', text: repoImageStyle });
-  for (const property of ['--rl-img-bars-light', '--rl-img-bars-dark', '--rl-img-specimen']) {
-    assert.ok(table[1].text.includes(`${property}:url("data:image/jpeg;base64,`));
-  }
-  assert.equal(table[2].kind, 'style');
-  assert.equal(typeof table[2].text, 'string');
-  assert.equal(table[3].kind, 'script');
-  assert.equal(table[3].placement, 'body');
-  assert.ok(table[3].text.startsWith(
-    'globalThis.__RHINE_SPLASH__=' + JSON.stringify(resolveConfig({ title: 'Host test', theme: 'dark' })) + ';\n',
-  ));
-  const secondTable = [];
-  subscription.handler(secondTable);
-  assert.deepEqual(secondTable, table.slice(1));
-} else {
-  assert.equal(subscriptions.length, 0);
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /Unable to load Rhine splash assets/);
+function fakeContext() {
+  const handlers = [], messages = [];
+  return { handlers, messages, ctx: {
+    on(event, handler, ...options) {
+      assert.equal(event, 'webserver/index-inject');
+      assert.deepEqual(options, []);
+      handlers.push(handler);
+    },
+    logger(scope) {
+      assert.equal(scope, 'rhine-splash');
+      return { warn(message) { messages.push(message); } };
+    },
+  } };
 }
+// Real-file apply tolerates optional UI assets appearing or disappearing.
+const real = fakeContext();
+const live = { title: { get: () => 'Host test' }, enabled: { get: () => liveEnabled } };
+assert.doesNotThrow(() => apply(real.ctx, live));
+assert.equal(real.handlers.length, 1);
+const table = [{ kind: 'style', text: '/* existing theme bootstrap */' }];
+real.handlers[0](table);
+assert.equal(table[0].text, '/* existing theme bootstrap */');
+assert.equal(table.at(-2).kind, 'style');
+assert.equal(table.at(-1).kind, 'script');
+assert.equal(globalsOf(table.at(-1).text).config.title, 'Host test');
+liveEnabled = false;
+const updated = [];
+real.handlers[0](updated);
+assert.equal(globalsOf(updated.at(-1).text).config.enabled, false);
+assert.equal(updated.at(-2).kind, 'style');
+const injected = fakeContext();
+const fiber = {};
+injected.ctx.fiber = fiber;
+let settingsCalls = 0, injectCalls = 0;
+injected.ctx.inject = (services, callback) => {
+  injectCalls++;
+  assert.deepEqual(services, ['settings']);
+  callback({ effect: (effect) => effect(), settings: { configure: (policy, owner) => {
+    settingsCalls++;
+    assert.deepEqual(policy, { auto: false });
+    assert.equal(owner, fiber);
+  } } });
+};
+assert.doesNotThrow(() => apply(injected.ctx));
+assert.equal(injectCalls, 1);
+assert.equal(settingsCalls, 1);
 
-// Isolated fixtures cover missing/unreadable images and required sources without
-// touching the real splash files that another author is rewriting.
+// Isolated fixtures never change the other author's source files.
 const fixture = mkdtempSync(join(tmpdir(), 'rhine-host-test-'));
 try {
   const lib = join(fixture, 'lib'), images = join(fixture, 'assets');
@@ -193,32 +224,35 @@ try {
   writeFileSync(join(lib, 'splash.css'), fakeAssets.css);
   writeFileSync(join(lib, 'splash.js'), fakeAssets.js);
   writeFileSync(join(images, 'bars-light.jpg'), imageBuffers.barsLight);
-  mkdirSync(join(images, 'bars-dark.jpg')); // A directory is unreadable as an image.
+  mkdirSync(join(images, 'bars-dark.jpg'));
   const { apply: fixtureApply } = await import(pathToFileURL(join(lib, 'index.mjs')).href);
-  function invoke() {
-    const handlers = [], messages = [];
-    fixtureApply({
-      on(event, handler) {
-        assert.equal(event, 'webserver/index-inject');
-        handlers.push(handler);
-      },
-      logger() { return { warn(message) { messages.push(message); } }; },
-    });
-    const table = [];
-    for (const handler of handlers) handler(table);
-    return { table, handlers, messages };
+  function invoke(config) {
+    const result = fakeContext();
+    fixtureApply(result.ctx, config);
+    result.table = [];
+    for (const handler of result.handlers) handler(result.table);
+    return result;
   }
   const partial = invoke();
   assert.equal(partial.handlers.length, 1);
-  assert.equal(partial.messages.length, 1);
+  assert.equal(partial.messages.length, 2);
   assert.match(partial.messages[0], /bars-dark\.jpg, specimen\.jpg/);
   assert.ok(!partial.messages[0].includes('bars-light.jpg'));
+  assert.match(partial.messages[1], /theme\.css.*mark\.svg.*hero\.svg.*name\.html/);
   assert.deepEqual(partial.table, buildInjections(DEFAULTS, { ...fakeAssets, images: lightStyle }));
+  // Optional sources are captured at apply, then reused on every emission.
+  mkdirSync(join(lib, 'brand'));
+  writeFileSync(join(lib, 'theme.css'), themeCss);
+  for (const [key, filename] of [['mark', 'mark.svg'], ['hero', 'hero.svg'], ['name', 'name.html']]) writeFileSync(join(lib, 'brand', filename), unsafeBrand[key]);
+  const withExtras = invoke({ enabled: false });
+  assert.equal(withExtras.messages.length, 1);
+  assert.deepEqual(withExtras.table, buildInjections(resolveConfig({ enabled: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
+  assert.deepEqual(invoke({ uiTheme: false }).table, buildInjections(resolveConfig({ uiTheme: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
   rmSync(images, { recursive: true });
   const missing = invoke();
   assert.equal(missing.messages.length, 1);
   assert.match(missing.messages[0], /bars-light\.jpg, bars-dark\.jpg, specimen\.jpg/);
-  assert.deepEqual(missing.table, buildInjections(DEFAULTS, fakeAssets));
+  assert.deepEqual(missing.table, buildInjections(DEFAULTS, { ...fakeAssets, themeCss, brand: unsafeBrand }));
   for (const [file, text] of [['splash.css', fakeAssets.css], ['splash.js', fakeAssets.js]]) {
     rmSync(join(lib, file));
     const disabled = invoke();
@@ -232,4 +266,4 @@ try {
   rmSync(fixture, { recursive: true, force: true });
 }
 
-console.log('Host tests passed (config defaults/clamps, image encoding, injection order, real-file apply, missing/unreadable assets).');
+console.log('Host tests passed (live config/cells, boolean validation, safe globals, theme/replay injection order, settings opt-out, optional/missing assets).');
