@@ -61,7 +61,25 @@
       const style = document.createElement('style')
       style.textContent = new Function(`return ${body}`)().join('')
       document.head.append(style)
+      // Run the real Matrix component from lib/client.js with a two-hook React stand-in.
+      const from = src.indexOf('    function Matrix() {')
+      const matrixSrc = src.slice(from, src.indexOf('    function EffortControl', from))
+      const effects = []
+      const fakeReact = { useRef: () => ({ current: null }), useEffect: (fn) => effects.push(fn) }
+      const fakeJsx = (tag, props) => { const el = document.createElement(tag); el.className = props.className; props.ref.current = el; return el }
+      const Matrix = new Function('React', 'jsx', `${matrixSrc}; return Matrix`)(fakeReact, fakeJsx)
+      // ?inspect: render the matrix at 3x and show it enlarged, to judge the dots.
+      const inspect = location.search.includes('inspect')
+      if (inspect) Object.defineProperty(window, 'devicePixelRatio', { get: () => 3 })
       render()
+      document.querySelectorAll('[data-matrix]').forEach((fill) => fill.append(Matrix()))
+      effects.forEach((fn) => fn())
+      if (inspect) setTimeout(() => document.querySelectorAll('canvas').forEach((canvas) => {
+        const img = new Image()
+        img.src = canvas.toDataURL()
+        img.style.cssText = `position:fixed;left:8px;top:300px;width:${canvas.width}px;background:#2a2a2c;z-index:9`
+        document.body.append(img)
+      }), 600)
     })
 
     const LEVELS = ['关闭', '低', '高', '最高']
@@ -75,13 +93,13 @@
       const on = (k) => (k <= level ? 'data-on="true"' : '')
       return `
         <div class="bar"><div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
-          <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
+          <button type="button" class="rl-eff-trigger"><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
         </div></div>
         <div class="rl-eff-pop" ${flags(level, extra)}>
           <div class="rl-eff-head"><span class="rl-eff-title">推理强度</span><span class="rl-eff-value">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span><span class="rl-eff-help"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6.4"/><path d="M6.3 6.3a1.75 1.75 0 1 1 2.5 1.6c-.5.25-.8.6-.8 1.1v.4M8 11.2v.1"/></svg></span></div>
           <div class="rl-eff-ends"><span>更快</span><span>更深</span></div>
           <div class="rl-eff-track" tabindex="0" style="--rl-eff-p:${p}"><div class="rl-eff-rail">
-            <i class="rl-eff-fill"></i>${LEVELS.map((_, k) => `<i class="rl-eff-stop" ${on(k)} ${k === DEFAULT ? 'data-default="true"' : ''} style="--k:${k / (n - 1)}"></i>`).join('')}<i class="rl-eff-thumb"></i>
+            <i class="rl-eff-fill" ${level === n - 1 ? 'data-matrix' : ''}></i>${LEVELS.map((_, k) => `<i class="rl-eff-stop" ${on(k)} ${k === DEFAULT ? 'data-default="true"' : ''} style="--k:${k / (n - 1)}"></i>`).join('')}<i class="rl-eff-thumb"></i>
           </div></div>
           <div class="rl-eff-scale"><span style="--k:${DEFAULT / (n - 1)}">默认</span></div>
         </div>`
