@@ -40,7 +40,7 @@ dsh plugin --profile desktop add "<absolute repository path>"
 
 ## Configure
 
-Prefer the UI: the config page (sidebar **插件** → this plugin → **配置**) or the `/splash` command; both save through dsh settings. Otherwise, append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
+Prefer the UI: the config page (sidebar **插件** → this plugin → **配置**) or the `/splash` command; both save through dsh settings, and the page's single **恢复默认** button stages a reset of every changed field. Otherwise, append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
 
 ```yaml
 - id: rhine-splash
@@ -77,6 +77,7 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
 
 ## Development
 
+- `cordis.patch.yml` must not carry a `config` block: defaults live in the `Config` schema in `lib/index.js`. dsh copies the whole merged config into the user layer on the first save, so a bundle-level block would mark every field as overridden.
 - `lib/index.js`: host half. It validates config and injects a style row and a body script through the `webserver/index-inject` event, so the splash appears before the shell boots. Images are inlined as data URIs.
 - Host config is a schemastery `Config` (all fields `.volatile()`), read on every index render; `@deepseek-ai/schemastery` is an optional peer resolved from the dsh runtime.
 - `lib/theme.css`: interface theme, `--dsw-*` token overrides only (never component class names). `lib/brand/`: `mark-plate.svg`, `mark-cell.svg` (optional `hero-<logo>.svg`), `name.html`; injected as `globalThis.__RHINE_BRAND__`.

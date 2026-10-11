@@ -1,37 +1,8 @@
+# 默认配置由 lib/index.js 的 Config 声明；请在插件页「配置」或 /splash 中修改。
+# 这里不要写 config：dsh 首次保存设置时会把此处整段配置复制到用户配置，导致每一项都显示为已覆盖。
 - insert:
     - id: rhine-splash
       name: dsh-rhine-splash
-      config:
-        # 开屏动画开关
-        enabled: true
-        # 莱茵界面主题开关
-        uiTheme: true
-        # 品牌替换开关
-        brand: true
-        # Logo 方案：plate（模块铭牌）/ cell（开放细胞）
-        logo: 'plate'
-        # 主标题，最多 80 个字符
-        title: 'DEEPSEEK HARNESS'
-        # 副标题，最多 80 个字符
-        subtitle: 'RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION'
-        # 角落 HUD 编号，最多 80 个字符
-        code: 'RL-DSH/0.2'
-        # 浅色模式强调色（橙色），十六进制颜色
-        accentLight: '#e46f24'
-        # 深色模式强调色（橙色），十六进制颜色
-        accentDark: '#f0893e'
-        # 主题：auto 跟随系统，或 light / dark
-        theme: 'auto'
-        # 退场动画：random 每次随机且不与上次重复，或固定为 doors（舱门）/ decode（代码消散）/ glitch（故障撕裂）/ iris（六边形光圈）
-        exit: 'random'
-        # 最短显示时长（毫秒），范围 0–15000
-        duration: 4500
-        # 强制退出时长（毫秒），不小于 duration，最大 20000
-        maxWait: 8000
-        # 是否允许点击跳过
-        skippable: true
-        # 页面刷新时是否重新播放
-        replayOnReload: false
 
 # 本插件接管侧栏与会话页的品牌插槽；关闭或卸载本插件后官方品牌自动恢复
 - id: ui-brand-official
