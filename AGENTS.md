@@ -1,6 +1,6 @@
 # AGENTS.md — dsh-rhine-splash
 
-A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in the desktop app, re-themes the interface through design tokens, and replaces the brand marks. Read this before installing, configuring, removing, or changing it. Reply to the user in their language (the owner writes Chinese).
+A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in the desktop app and in `dsh web`, re-themes the interface through design tokens, and replaces the brand marks. Read this before installing, configuring, removing, or changing it. Reply to the user in their language (the owner writes Chinese).
 
 ## Facts
 
@@ -36,6 +36,7 @@ dsh plugin --profile desktop add "<absolute repository path>"
 - If `dsh` is not on PATH, use `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"`, or ask the user to run the menu item **DeepSeek Harness → 管理 dsh 命令… → 安装**.
 - The error `Open DeepSeek Harness Desktop once to initialize its profile, then fully quit it` means the app has never run, or it is still running.
 - A successful install adds `dsh-rhine-splash` to `dsh.profile.bundles` in `~/.dsh/profiles/desktop/package.json`. That file is the read-only way to verify the install.
+- Web app (`dsh web`): stop it, then run `dsh plugin --profile web add "<source>"` and start `dsh web` again. dsh calls the `pnpm` on PATH; if it is missing, tell the user rather than installing it. Paths and verification are the same with `web` in place of `desktop`.
 
 ## Configure
 
@@ -85,3 +86,4 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
   - Exits are registered in `EXITS`. The reduced-motion setting always uses a plain fade.
 - Checks: `npm test`, plus `node --check lib/splash.js`. Preview with `npm run preview`, then open `http://localhost:4173/preview/`; the page has selectors for exit, theme and duration.
 - Version control: work on a branch, merge with `--no-ff`, and tag releases (`vX.Y.Z`). Keep `package.json` `version` in sync with the tag.
+- Changelog and releases: `CHANGELOG.md` follows Keep a Changelog; add entries under `[未发布]`. Write release notes from `.github/RELEASE_TEMPLATE.md`, title `vX.Y.Z · <summary>`, and attach the `npm pack` tarball.
