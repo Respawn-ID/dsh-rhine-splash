@@ -1,0 +1,8 @@
+<svg viewBox="0 0 48 48" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <path d="M4 4H33L44 15V44H4Z" fill="currentColor"/>
+  <path d="M36 4H44V12Z" style="fill:var(--dsw-static-deepseek-500,#e46f24)"/>
+  <g style="stroke:var(--dsw-alias-bg-base,#fff)" stroke-width="3.6" stroke-linejoin="miter">
+    <path d="M12.5 17.8H18.3L22.1 21.6V26.4L18.3 30.2H12.5Z"/>
+    <path d="M27.9 16V32M35.5 16V32M27.9 24H35.5"/>
+  </g>
+</svg>

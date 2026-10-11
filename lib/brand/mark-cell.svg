@@ -1,0 +1,4 @@
+<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <path d="M19.27 7.8V16.2L12 20.4L4.73 16.2V7.8L12 3.6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="miter"/>
+  <rect x="10" y="10" width="4" height="4" style="fill:var(--dsw-static-deepseek-500,#e46f24)"/>
+</svg>

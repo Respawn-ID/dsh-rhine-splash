@@ -1,6 +1,6 @@
 # AGENTS.md — dsh-rhine-splash
 
-A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in the desktop app. Read this before installing, configuring, removing, or changing it. Reply to the user in their language (the owner writes Chinese).
+A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in the desktop app, re-themes the interface through design tokens, and replaces the brand marks. Read this before installing, configuring, removing, or changing it. Reply to the user in their language (the owner writes Chinese).
 
 ## Facts
 
@@ -39,7 +39,7 @@ dsh plugin --profile desktop add "<absolute repository path>"
 
 ## Configure
 
-Append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
+Prefer the UI: the config page (sidebar **插件** → this plugin → **配置**) or the `/splash` command; both save through dsh settings. Otherwise, append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
 
 ```yaml
 - id: rhine-splash
@@ -50,6 +50,10 @@ Append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the ex
 
 | Key | Default | Allowed |
 | --- | --- | --- |
+| `enabled` | `true` | boolean — splash on launch (theme/brand unaffected) |
+| `uiTheme` | `true` | boolean — Rhine interface theme |
+| `brand` | `true` | boolean — replace sidebar and conversation brand marks |
+| `logo` | `plate` | `plate` \| `cell` |
 | `title`, `subtitle`, `code` | `DEEPSEEK HARNESS`, `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION`, `RL-DSH/0.2` | strings, ≤ 80 chars |
 | `accentLight`, `accentDark` | `#e46f24`, `#f0893e` | quoted `#` hex, 3–8 digits |
 | `theme` | `auto` | `auto` \| `light` \| `dark` |
@@ -73,7 +77,10 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
 ## Development
 
 - `lib/index.js`: host half. It validates config and injects a style row and a body script through the `webserver/index-inject` event, so the splash appears before the shell boots. Images are inlined as data URIs.
-- `lib/splash.css` and `lib/splash.js`: the browser half. All CSS stays scoped under `#rhine-splash` with an `rl-` prefix.
+- Host config is a schemastery `Config` (all fields `.volatile()`), read on every index render; `@deepseek-ai/schemastery` is an optional peer resolved from the dsh runtime.
+- `lib/theme.css`: interface theme, `--dsw-*` token overrides only (never component class names). `lib/brand/`: `mark-plate.svg`, `mark-cell.svg` (optional `hero-<logo>.svg`), `name.html`; injected as `globalThis.__RHINE_BRAND__`.
+- `lib/client.js`: browser half in the shipped `window.__ModuleLoader__.load` format, no build step. It occupies the single `sidebar.brand.*` slots (the bundle patch disables `ui-brand-official`), `conversation.hero.brand.mark`, the Plugins-page `plugins.row.config` page, and the `/splash` popup command.
+- `lib/splash.css` and `lib/splash.js`: the splash itself; `globalThis.__rhineSplash.replay({ exit })` replays it on demand. All CSS stays scoped under `#rhine-splash` with an `rl-` prefix.
   - Beats: `--B`, `--G` and `--R` in CSS must match `BEAT` in JS.
   - Exits are registered in `EXITS`. The reduced-motion setting always uses a plain fade.
 - Checks: `npm test`, plus `node --check lib/splash.js`. Preview with `npm run preview`, then open `http://localhost:4173/preview/`; the page has selectors for exit, theme and duration.
