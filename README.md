@@ -116,6 +116,12 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 关闭品牌标志，或者停用、卸载本插件后，Harness 会恢复官方的鲸鱼标志。
 
+### 推理强度滑块
+
+输入框右下角、模型选择器左边会多出一个推理强度按钮，显示当前档位。点开后拖动滑块或点击刻度即可切换推理强度，也可以用方向键调整。DeepSeek 模型有关闭、低、高、最高四档；其他模型按它们提供的档位显示。
+
+切到最高档时，滑块会出现流动的斜纹和光晕，面板顶部亮起橙色扫描线，并显示 OVERDRIVE 标记。滑块和模型选择器里的「推理等级」改的是同一个设置，两边会保持一致。系统开启「减弱动态效果」时不播放这些动画。不需要时，可以在设置页关闭「推理强度滑块」。
+
 ## 配置
 
 ### 在 Harness 中设置
@@ -149,6 +155,7 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 | `uiTheme` | `true` | 是否使用莱茵界面主题 |
 | `brand` | `true` | 是否替换品牌标志 |
 | `logo` | `plate` | 标志样式：`plate`（模块铭牌）或 `cell`（开放细胞） |
+| `effortSlider` | `true` | 是否在输入框旁显示推理强度滑块 |
 | `title` | `DEEPSEEK HARNESS` | 开屏主标题，最多 80 个字符 |
 | `subtitle` | `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION` | 开屏副标题，最多 80 个字符 |
 | `code` | `RL-DSH/0.2` | 开屏角落显示的编号，最多 80 个字符 |
@@ -250,6 +257,8 @@ npm run preview
 ```
 
 然后在浏览器中打开 <http://localhost:4173/preview/>。页面底部可以切换退场动画、深浅色、时长等选项，按 <kbd>R</kbd> 可以重播。也可以通过 URL 参数指定，例如 `?theme=dark&exit=iris&duration=6000`。
+
+`preview/brand.html` 用来对比两种品牌标志，`preview/effort.html` 用来检查推理强度滑块的各档样式（加上 `#dark` 查看深色）。
 
 预览页面只用来检查动画效果。注入页面的逻辑请通过测试和实际运行 Harness 来验证。
 

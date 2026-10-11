@@ -108,7 +108,8 @@ assert.equal(allImageStyle, '#rhine-splash{--rl-img-bars-light:url("data:image/j
 const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((match) => Buffer.from(match[1], 'base64'));
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
-for (const key of ['enabled', 'uiTheme', 'brand']) {
+assert.equal(resolveConfig({}).effortSlider, true);
+for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);

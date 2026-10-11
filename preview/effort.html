@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Effort Preview</title>
+  <style>
+    /* Stand-ins for the app's tokens under the Rhine theme, so the slider
+       styles from lib/client.js render here as they do in the app. */
+    body {
+      --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
+      --dsw-radius-sm: 4px; --dsw-radius-lg: 8px;
+      --dsw-static-neutral-bluish-00: #fbfaf7; --dsw-static-neutral-bluish-850: #2d2c29;
+      --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
+      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .06);
+      --dsw-alias-border-l1: rgba(18, 17, 15, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .14);
+      --dsw-elevation-stroke: 0 0 0 .5px var(--dsw-elevation-stroke-color);
+      --dsw-elevation-prominent: var(--dsw-elevation-stroke), 0 3px 8px 0 #0000000a, 0 0 20px 0 #0000000d;
+      margin: 0; padding: 24px; background: #f2f1ec; color: var(--dsw-alias-label-primary);
+      font: 13px/1.6 var(--dsw-font-family);
+    }
+    body[data-ds-dark-theme] {
+      --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .07);
+      background: #171715;
+    }
+    body * { --dsw-elevation-stroke: 0 0 0 .5px var(--dsw-elevation-stroke-color); }
+    .grid { display: grid; grid-template-columns: repeat(3, 296px); gap: 28px; align-items: end; }
+    .cell { display: flex; flex-direction: column; gap: 14px; }
+    .cell > b { font-size: 11px; letter-spacing: .08em; opacity: .5; }
+    .cell .rl-eff-pop { position: relative; }
+    .bar { display: flex; justify-content: flex-end; padding: 6px; border-radius: 12px; border: 1px solid var(--dsw-alias-border-l1); }
+    .backdrop { position: absolute; inset: 0; z-index: -1; overflow: hidden; opacity: .1; font-size: 12px; line-height: 2.2; }
+  </style>
+</head>
+<body>
+  <div class="backdrop" id="bg"></div>
+  <div class="grid" id="grid"></div>
+  <script>
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    document.getElementById('bg').textContent = '莱茵生命 · 推理强度预览 '.repeat(160)
+
+    // Pull the CSS array straight out of lib/client.js so this page never drifts.
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${body}`)().join('')
+      document.head.append(style)
+      render()
+    })
+
+    const LEVELS = ['关闭', '低', '高', '最高']
+    const flags = (level, extra = {}) => Object.entries({ 'data-level': level, 'data-max': level === LEVELS.length - 1 ? 'true' : null, ...extra })
+      .filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}="${v}"`).join(' ')
+
+    function control(level, p = level / (LEVELS.length - 1), extra = {}) {
+      const n = LEVELS.length
+      const on = (k) => (k <= level ? 'data-on="true"' : '')
+      return `
+        <div class="bar"><div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
+          <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${LEVELS[level]}</span></button>
+        </div></div>
+        <div class="rl-eff-pop" ${flags(level, extra)}>
+          <div class="rl-eff-head"><span class="rl-eff-title">推理强度</span><span class="rl-eff-value">${LEVELS[level]}</span></div>
+          <div class="rl-eff-ends"><span>更快</span><span>更深</span></div>
+          <div class="rl-eff-track" tabindex="0" style="--rl-eff-p:${p}"><div class="rl-eff-rail">
+            <i class="rl-eff-fill"></i>${LEVELS.map((_, k) => `<i class="rl-eff-stop" ${on(k)} style="--k:${k / (n - 1)}"></i>`).join('')}<i class="rl-eff-thumb"></i>
+          </div></div>
+          <div class="rl-eff-scale">${LEVELS.map((name, k) => `<span ${on(k)} ${k === level ? 'data-current="true"' : ''} style="--k:${k / (n - 1)}">${name}</span>`).join('')}</div>
+        </div>`
+    }
+
+    function render() {
+      document.getElementById('grid').innerHTML = [
+        ['低', control(1)],
+        ['高 · 拖动中', control(2, 0.58, { 'data-dragging': 'true' })],
+        ['最高 · OVERDRIVE', control(3)],
+      ].map(([label, html]) => `<div class="cell"><b>${label}</b>${html}</div>`).join('')
+    }
+  </script>
+</body>
+</html>

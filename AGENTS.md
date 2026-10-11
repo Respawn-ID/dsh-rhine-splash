@@ -55,6 +55,7 @@ Prefer the UI: the config page (sidebar **插件** → this plugin → **配置*
 | `uiTheme` | `true` | boolean — Rhine interface theme |
 | `brand` | `true` | boolean — replace sidebar and conversation brand marks |
 | `logo` | `plate` | `plate` \| `cell` |
+| `effortSlider` | `true` | boolean — reasoning effort slider next to the model selector |
 | `title`, `subtitle`, `code` | `DEEPSEEK HARNESS`, `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION`, `RL-DSH/0.2` | strings, ≤ 80 chars |
 | `accentLight`, `accentDark` | `#e46f24`, `#f0893e` | quoted `#` hex, 3–8 digits |
 | `theme` | `auto` | `auto` \| `light` \| `dark` |
@@ -81,7 +82,7 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
 - `lib/index.js`: host half. It validates config and injects a style row and a body script through the `webserver/index-inject` event, so the splash appears before the shell boots. Images are inlined as data URIs.
 - Host config is a schemastery `Config` (all fields `.volatile()`), read on every index render; `@deepseek-ai/schemastery` is an optional peer resolved from the dsh runtime.
 - `lib/theme.css`: interface theme, `--dsw-*` token overrides only (never component class names). `lib/brand/`: `mark-plate.svg`, `mark-cell.svg` (optional `hero-<logo>.svg`), `name.html`; injected as `globalThis.__RHINE_BRAND__`.
-- `lib/client.js`: browser half in the shipped `window.__ModuleLoader__.load` format, no build step. It occupies the single `sidebar.brand.*` slots (the bundle patch disables `ui-brand-official`), `conversation.hero.brand.mark`, the Plugins-page `plugins.row.config` page, and the `/splash` popup command.
+- `lib/client.js`: browser half in the shipped `window.__ModuleLoader__.load` format, no build step. It occupies the single `sidebar.brand.*` slots (the bundle patch disables `ui-brand-official`), `conversation.hero.brand.mark`, the Plugins-page `plugins.row.config` page, the `/splash` popup command, and the composer `conversation.input.right` effort slider. The slider reads and writes the same per-session directory as the official model selector (`modelDirectories` service from `@deepseek-ai/dsh-client-ui-model-selection`); `preview/effort.html` renders its styles from the `CSS` array in `client.js`.
 - `lib/splash.css` and `lib/splash.js`: the splash itself; `globalThis.__rhineSplash.replay({ exit })` replays it on demand. All CSS stays scoped under `#rhine-splash` with an `rl-` prefix.
   - Beats: `--B`, `--G` and `--R` in CSS must match `BEAT` in JS.
   - Exits are registered in `EXITS`. The reduced-motion setting always uses a plain fade.
