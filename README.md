@@ -278,15 +278,6 @@ node --check lib/splash.js
 - 所有样式都写在 `#rhine-splash` 下，类名以 `rl-` 开头。
 - 新的退场动画需要在 `lib/splash.js` 的 `EXITS` 中注册。
 
-### 发布新版本
-
-1. 在分支上开发，完成后用 `git merge --no-ff` 合并回 `main`。
-2. 更新 `package.json` 中的 `version`，并把 `CHANGELOG.md` 中「未发布」的内容整理到新版本下。
-3. 运行测试。
-4. 创建并推送版本标签：`git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`。
-5. 运行 `npm pack`，生成 `dsh-rhine-splash-X.Y.Z.tgz`。
-6. 在 GitHub 上新建 Release，参考 [`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md) 填写说明，并上传 tgz 文件。
-
 ## 声明
 
 本项目是非官方的爱好者作品，与《明日方舟》的权利方鹰角网络（Hypergryph）没有关联。设计参考了特别映像「莱茵生命：访问」，所有图形和图片均为原创或程序生成，不包含官方 Logo、角色或美术素材。《明日方舟》及相关名称和标识归其权利人所有。
