@@ -14,6 +14,14 @@ assert.equal(DEFAULTS.accentLight, '#e46f24');
 assert.equal(DEFAULTS.accentDark, '#f0893e');
 assert.equal(DEFAULTS.maxWait, 8000);
 assert.equal(DEFAULTS.exit, 'random');
+assert.equal(DEFAULTS.logo, 'plate');
+for (const logo of ['plate', 'cell']) {
+  assert.equal(resolveConfig({ logo }).logo, logo);
+}
+assert.equal(resolveConfig({ logo: ' cell ' }).logo, 'cell');
+for (const logo of ['invalid', '', 'CELL', 42, null]) {
+  assert.equal(resolveConfig({ logo }).logo, 'plate');
+}
 for (const exit of ['random', 'doors', 'decode', 'glitch', 'iris']) {
   assert.equal(resolveConfig({ exit }).exit, exit);
 }
@@ -238,16 +246,39 @@ try {
   assert.equal(partial.messages.length, 2);
   assert.match(partial.messages[0], /bars-dark\.jpg, specimen\.jpg/);
   assert.ok(!partial.messages[0].includes('bars-light.jpg'));
-  assert.match(partial.messages[1], /theme\.css.*mark\.svg.*hero\.svg.*name\.html/);
+  assert.match(partial.messages[1], /theme\.css.*mark-plate\.svg.*mark-cell\.svg.*name\.html/);
   assert.deepEqual(partial.table, buildInjections(DEFAULTS, { ...fakeAssets, images: lightStyle }));
   // Optional sources are captured at apply, then reused on every emission.
   mkdirSync(join(lib, 'brand'));
   writeFileSync(join(lib, 'theme.css'), themeCss);
-  for (const [key, filename] of [['mark', 'mark.svg'], ['hero', 'hero.svg'], ['name', 'name.html']]) writeFileSync(join(lib, 'brand', filename), unsafeBrand[key]);
+  const cellBrand = { mark: '<svg>cell mark</svg>', hero: '<svg>cell hero</svg>', name: unsafeBrand.name };
+  for (const [filename, text] of [
+    ['mark-plate.svg', unsafeBrand.mark], ['hero-plate.svg', unsafeBrand.hero],
+    ['mark-cell.svg', cellBrand.mark], ['hero-cell.svg', cellBrand.hero],
+    ['name.html', unsafeBrand.name],
+  ]) writeFileSync(join(lib, 'brand', filename), text);
   const withExtras = invoke({ enabled: false });
   assert.equal(withExtras.messages.length, 1);
   assert.deepEqual(withExtras.table, buildInjections(resolveConfig({ enabled: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
   assert.deepEqual(invoke({ uiTheme: false }).table, buildInjections(resolveConfig({ uiTheme: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
+  let liveLogo = 'plate';
+  const switchable = invoke({ logo: { get: () => liveLogo } });
+  assert.deepEqual(globalsOf(switchable.table.at(-1).text).brand, unsafeBrand);
+  liveLogo = ' cell ';
+  const cellTable = [];
+  switchable.handlers[0](cellTable);
+  assert.equal(globalsOf(cellTable.at(-1).text).config.logo, 'cell');
+  assert.deepEqual(globalsOf(cellTable.at(-1).text).brand, cellBrand);
+  rmSync(join(lib, 'brand', 'hero-cell.svg'));
+  const cachedTable = [];
+  switchable.handlers[0](cachedTable);
+  assert.deepEqual(globalsOf(cachedTable.at(-1).text).brand, cellBrand);
+  const fallback = invoke({ logo: 'cell' });
+  // Hero files are optional per scheme: a missing one is quiet and falls back to the mark.
+  assert.equal(fallback.messages.length, 1);
+  assert.ok(!fallback.messages.some((message) => /hero-cell\.svg/.test(message)));
+  assert.deepEqual(globalsOf(fallback.table.at(-1).text).brand, { ...cellBrand, hero: cellBrand.mark });
+  writeFileSync(join(lib, 'brand', 'hero-cell.svg'), cellBrand.hero);
   rmSync(images, { recursive: true });
   const missing = invoke();
   assert.equal(missing.messages.length, 1);
@@ -266,4 +297,4 @@ try {
   rmSync(fixture, { recursive: true, force: true });
 }
 
-console.log('Host tests passed (live config/cells, boolean validation, safe globals, theme/replay injection order, settings opt-out, optional/missing assets).');
+console.log('Host tests passed (live config/cells, logo schemes/hero fallback, boolean validation, safe globals, theme/replay injection order, settings opt-out, optional/missing assets).');

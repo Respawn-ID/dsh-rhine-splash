@@ -8,6 +8,8 @@
         uiTheme: true
         # 品牌替换开关
         brand: true
+        # Logo 方案：plate（模块铭牌）/ cell（开放细胞）
+        logo: 'plate'
         # 主标题，最多 80 个字符
         title: 'DEEPSEEK HARNESS'
         # 副标题，最多 80 个字符

@@ -1,6 +1,0 @@
-<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-  <circle cx="12" cy="12" r="10.6" stroke="currentColor" stroke-opacity=".38" stroke-width="1.3" stroke-dasharray=".6 1.62"/>
-  <path d="M12 3.6A8.4 8.4 0 0 1 19.27 7.8" style="stroke:var(--dsw-static-deepseek-500,#e46f24)" stroke-width="1.9"/>
-  <polygon points="12,6.2 17.02,9.1 17.02,14.9 12,17.8 6.98,14.9 6.98,9.1" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-  <circle cx="12" cy="12" r="2.1" style="fill:var(--dsw-static-deepseek-500,#e46f24)"/>
-</svg>
