@@ -93,7 +93,7 @@
       const on = (k) => (k <= level ? 'data-on="true"' : '')
       return `
         <div class="bar"><div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
-          <button type="button" class="rl-eff-trigger"><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
+          <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
         </div></div>
         <div class="rl-eff-pop" ${flags(level, extra)}>
           <div class="rl-eff-head"><span class="rl-eff-title">推理强度</span><span class="rl-eff-value">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span><span class="rl-eff-help"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6.4"/><path d="M6.3 6.3a1.75 1.75 0 1 1 2.5 1.6c-.5.25-.8.6-.8 1.1v.4M8 11.2v.1"/></svg></span></div>
