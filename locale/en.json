@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Rhine Lab Splash",
-    "description": "Plays a Rhine Lab style boot animation when DeepSeek Harness starts; follows light/dark mode and can be skipped."
+    "description": "Plays a Rhine Lab style boot animation and re-themes DeepSeek Harness; adds a reasoning effort slider, conversation cost and balance, and deletion of archived conversations."
   }
 }
