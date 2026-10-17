@@ -116,6 +116,14 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 关闭品牌标志，或者停用、卸载本插件后，Harness 会恢复官方的鲸鱼标志。
 
+### 计费与余额
+
+侧栏左下角会显示一张小卡片：「本对话」是当前打开的对话已经花掉的钱，「余额」是 DeepSeek 账户剩余的余额，右上角标出现在是高峰还是闲时。
+
+- 本对话的费用按 DeepSeek 官方价格估算：按所用模型和当时所处时段的单价，把缓存命中、未命中和输出 token 分别计价，闲时按半价算，不计节假日。第一次看到一个已经用过的对话时，之前的用量按当前时段单价一次性估算。鼠标停在这一行上可以看到 token 明细。
+- 余额由插件在 Harness 后台用你在 Harness 里配置的 DeepSeek API Key 向 DeepSeek 官方余额接口查询，每分钟最多查一次。API Key 只在后台使用，不会传到界面。没有配置 API Key 时显示「未配置 Key」。
+- 不需要时，可以在设置页关闭「计费与余额」。
+
 ### 推理强度滑块
 
 输入框右下角、模型选择器左边会多出一个推理强度按钮，显示当前档位。点开后拖动滑块或点击刻度即可切换推理强度，也可以用方向键调整。DeepSeek 模型有关闭、低、高、最高四档；其他模型按它们提供的档位显示。
@@ -156,6 +164,7 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 | `brand` | `true` | 是否替换品牌标志 |
 | `logo` | `plate` | 标志样式：`plate`（模块铭牌）或 `cell`（开放细胞） |
 | `effortSlider` | `true` | 是否在输入框旁显示推理强度滑块 |
+| `billing` | `true` | 是否在侧栏左下角显示本对话费用和账户余额 |
 | `title` | `DEEPSEEK HARNESS` | 开屏主标题，最多 80 个字符 |
 | `subtitle` | `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION` | 开屏副标题，最多 80 个字符 |
 | `code` | `RL-DSH/0.2` | 开屏角落显示的编号，最多 80 个字符 |
@@ -258,7 +267,7 @@ npm run preview
 
 然后在浏览器中打开 <http://localhost:4173/preview/>。页面底部可以切换退场动画、深浅色、时长等选项，按 <kbd>R</kbd> 可以重播。也可以通过 URL 参数指定，例如 `?theme=dark&exit=iris&duration=6000`。
 
-`preview/brand.html` 用来对比两种品牌标志，`preview/effort.html` 用来检查推理强度滑块的各档样式（加上 `#dark` 查看深色，加上 `?inspect` 以 3 倍分辨率查看最高档点阵）。
+`preview/brand.html` 用来对比两种品牌标志，`preview/billing.html` 用来检查左下角计费卡片，`preview/effort.html` 用来检查推理强度滑块的各档样式（加上 `#dark` 查看深色，加上 `?inspect` 以 3 倍分辨率查看最高档点阵）。
 
 预览页面只用来检查动画效果。注入页面的逻辑请通过测试和实际运行 Harness 来验证。
 

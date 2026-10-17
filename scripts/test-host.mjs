@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apply, buildAssetStyle, buildInjections, DEFAULTS, name, readConfig, resolveConfig } from '../lib/index.js';
+import { apply, buildAssetStyle, buildInjections, DEFAULTS, name, parseBalance, readConfig, resolveConfig } from '../lib/index.js';
 
 // Configuration and injection tests use fake assets so concurrent asset authoring
 // does not prevent validation of the host plugin.
@@ -109,11 +109,25 @@ const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((matc
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
 assert.equal(resolveConfig({}).effortSlider, true);
-for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider']) {
+for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider', 'billing']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);
   for (const value of ['false', 0, null, {}]) assert.equal(resolveConfig({ [key]: value })[key], true);
+}
+const balanceSample = { currency: 'CNY', total_balance: '12.30', granted_balance: '2.00', topped_up_balance: '10.30' };
+const balancePayload = { status: 'ready', available: true,
+  balances: [{ currency: 'CNY', total: '12.30', granted: '2.00', toppedUp: '10.30' }] };
+assert.deepEqual(parseBalance({ is_available: true, balance_infos: [balanceSample] }), balancePayload);
+assert.deepEqual(parseBalance({ is_available: true, balance_infos: [
+  balanceSample, { ...balanceSample, currency: 'EUR' }, { ...balanceSample, total_balance: '1e2' },
+  { ...balanceSample, granted_balance: 2 }, { ...balanceSample, topped_up_balance: 'NaN' }, null,
+] }), balancePayload);
+assert.deepEqual(parseBalance({ is_available: false, balance_infos: [
+  { currency: 'USD', total_balance: '-0.5', granted_balance: '0', topped_up_balance: '-0.5' },
+] }), { status: 'ready', available: false, balances: [{ currency: 'USD', total: '-0.5', granted: '0', toppedUp: '-0.5' }] });
+for (const input of [null, undefined, 'invalid', 42, [], {}, { is_available: true, balance_infos: [] }]) {
+  assert.equal(parseBalance(input), null);
 }
 assert.deepEqual(readConfig(), DEFAULTS);
 assert.deepEqual(readConfig(Object.fromEntries(Object.entries(DEFAULTS).map(([key, value]) => [key, { get: () => value }]))), DEFAULTS);
@@ -212,6 +226,10 @@ injected.ctx.fiber = fiber;
 let settingsCalls = 0, injectCalls = 0;
 injected.ctx.inject = (services, callback) => {
   injectCalls++;
+  if (services[0] === 'webServer') {
+    assert.deepEqual(services, ['webServer']);
+    return;
+  }
   assert.deepEqual(services, ['settings']);
   callback({ effect: (effect) => effect(), settings: { configure: (policy, owner) => {
     settingsCalls++;
@@ -220,7 +238,7 @@ injected.ctx.inject = (services, callback) => {
   } } });
 };
 assert.doesNotThrow(() => apply(injected.ctx));
-assert.equal(injectCalls, 1);
+assert.equal(injectCalls, 2);
 assert.equal(settingsCalls, 1);
 
 // Isolated fixtures never change the other author's source files.
