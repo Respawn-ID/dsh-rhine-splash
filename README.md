@@ -318,3 +318,5 @@ node --check lib/splash.js
 ## 许可证
 
 [MIT](LICENSE) © 2026 ArtemisFowl
+
+[![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/plugins/respawn-id/dsh-rhine-splash)
