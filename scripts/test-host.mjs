@@ -3,7 +3,17 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, trashTarget } from '../lib/index.js';
+import { apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, trashTarget } from '../lib/index.js';
+
+assert.deepEqual(staleArchivedIds(['session-b', 'session-a'], new Set(), () => false),
+  ['session-b', 'session-a']);
+for (const stored of [new Set(['session-stored']), ['session-stored']]) {
+  assert.deepEqual(staleArchivedIds(['session-stored', 'session-missing'], stored, () => false),
+    ['session-missing']);
+}
+assert.deepEqual(staleArchivedIds(['session-live', 'session-missing'], [], (id) => id === 'session-live'),
+  ['session-missing']);
+assert.deepEqual(staleArchivedIds([], [], () => false), []);
 
 // Trash path validation is pure: no filesystem or network operations.
 const sessionRoot = '/home/test/.dsh/sessions';
@@ -243,6 +253,10 @@ injected.ctx.inject = (services, callback) => {
     assert.deepEqual(services, ['webServer']);
     return;
   }
+  if (services[0] === 'workspaceRegistry') {
+    assert.deepEqual(services, ['workspaceRegistry', 'sessionPersistence']);
+    return;
+  }
   assert.deepEqual(services, ['settings']);
   callback({ effect: (effect) => effect(), settings: { configure: (policy, owner) => {
     settingsCalls++;
@@ -251,7 +265,7 @@ injected.ctx.inject = (services, callback) => {
   } } });
 };
 assert.doesNotThrow(() => apply(injected.ctx));
-assert.equal(injectCalls, 2);
+assert.equal(injectCalls, 3);
 assert.equal(settingsCalls, 1);
 
 // Isolated fixtures never change the other author's source files.
