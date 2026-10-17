@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Archives Preview</title>
+  <style>
+    /* Stand-ins for the app's tokens and dsh's native Modal frame, so the
+       manager styles from lib/client.js render here as they do in the app. */
+    body {
+      --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
+      --dsw-radius-xs: 2px; --dsw-radius-md: 6px; --dsw-radius-lg: 8px;
+      --dsw-static-deepseek-500: #e46f24; --dsw-alias-state-error-primary: #d93a2b;
+      --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
+      --dsw-alias-border-l2: rgba(18, 17, 15, .12); --dsw-alias-border-l3: rgba(18, 17, 15, .22);
+      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .05);
+      margin: 0; padding: 32px; background: #e8e6df; color: var(--dsw-alias-label-primary);
+      font: 13px/1.6 var(--dsw-font-family);
+    }
+    body[data-ds-dark-theme] {
+      --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
+      --dsw-alias-border-l2: rgba(255, 255, 255, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .18);
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06); --dsw-alias-state-error-primary: #f0584a;
+      background: #12110f;
+    }
+    .dialog { margin: 0 auto; border-radius: 12px; background: #fbfaf7; box-shadow: 0 12px 40px #0003; }
+    body[data-ds-dark-theme] .dialog { background: #252422; }
+    .content { padding: 20px 20px 8px; }
+    .content h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .content p.desc { margin: 0 0 14px; font-size: 12.5px; color: var(--dsw-alias-label-tertiary); }
+    .footer { padding: 12px 20px 16px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    // Pull the CSS array straight out of lib/client.js so this page never drifts.
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${body}`)().join('')
+      document.head.append(style)
+      const rows = [
+        ['开屏退场动画调试', 'Deepseek Theme · 10月11日 23:12', true],
+        ['推理强度滑块的点阵特效参考 Claude Code 的实现方式', 'Deepseek Theme · 10月12日 14:05', true],
+        ['周报整理', 'default-workspace · 10月8日 09:40', false, 'loaded', '本次打开过，重启后再删'],
+        ['未命名对话', 'New code · 2026-09-30', false],
+        ['数据清洗脚本', 'default-workspace · 10月2日 18:22', false, 'failed', '删除失败'],
+      ]
+      document.getElementById('root').innerHTML = `
+        <div class="dialog rl-arc">
+          <div class="content"><h2>归档对话管理</h2><p class="desc">共 5 个已归档对话。删除会把对话记录移到废纸篓，可以找回；重启 Harness 后从侧栏消失。</p>
+            <div class="rl-arc-bar"><label class="rl-arc-all"><input type="checkbox" class="rl-arc-check"><span>全选</span></label><span class="rl-arc-count">已选 2 个</span></div>
+            <div class="rl-arc-list">${rows.map(([title, meta, sel, state, note]) => `
+              <label class="rl-arc-row" ${sel ? 'data-selected="true"' : ''} ${state ? `data-state="${state}"` : ''}>
+                <input type="checkbox" class="rl-arc-check" ${sel ? 'checked' : ''}>
+                <span class="rl-arc-main"><span class="rl-arc-title">${title}</span><span class="rl-arc-meta">${meta}</span></span>
+                ${note ? `<span class="rl-arc-note">${note}</span>` : ''}
+              </label>`).join('')}</div>
+          </div>
+          <div class="footer"><div class="rl-arc-foot"><span class="rl-arc-progress">正在删除 1/2</span>
+            <button type="button" class="rl-arc-btn">关闭</button>
+            <button type="button" class="rl-arc-btn rl-arc-btn--danger" ${location.search.includes('confirm') ? 'data-confirm="true"' : ''}>${location.search.includes('confirm') ? '确认删除 2 个' : '删除所选（2）'}</button></div></div>
+        </div>`
+    })
+  </script>
+</body>
+</html>
