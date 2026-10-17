@@ -3,7 +3,20 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apply, buildAssetStyle, buildInjections, DEFAULTS, name, parseBalance, readConfig, resolveConfig } from '../lib/index.js';
+import { apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, trashTarget } from '../lib/index.js';
+
+// Trash path validation is pure: no filesystem or network operations.
+const sessionRoot = '/home/test/.dsh/sessions';
+const sessionDir = join(sessionRoot, 'workspace', 'session-abc');
+assert.equal(trashTarget({ dir: sessionDir, root: sessionRoot, platform: 'darwin', home: '/Users/test', now: 123 }),
+  '/Users/test/.Trash/dsh-session-abc-123');
+assert.equal(trashTarget({ dir: sessionDir, root: sessionRoot, platform: 'linux', home: '/home/test', now: 123 }),
+  '/home/test/.dsh/trash/session-abc-123');
+assert.equal(isSessionDirInside(sessionRoot, sessionDir), true);
+assert.equal(isSessionDirInside(sessionRoot, join(sessionRoot, '..', 'session-abc')), false);
+assert.equal(isSessionDirInside(sessionRoot, sessionRoot), false);
+assert.equal(isSessionDirInside(sessionRoot, join(sessionRoot, 'other-folder')), false);
+assert.equal(isSessionDirInside(sessionRoot, '/unrelated/session-abc'), false);
 
 // Configuration and injection tests use fake assets so concurrent asset authoring
 // does not prevent validation of the host plugin.
