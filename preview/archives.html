@@ -5,30 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Archives Preview</title>
   <style>
-    /* Stand-ins for the app's tokens and dsh's native Modal frame, so the
-       manager styles from lib/client.js render here as they do in the app. */
+    /* Stand-ins for the app's tokens and dsh's settings panel frame, so the
+       archive page styles from lib/client.js render here as in the app. */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
       --dsw-radius-xs: 2px; --dsw-radius-md: 6px; --dsw-radius-lg: 8px;
       --dsw-static-deepseek-500: #e46f24; --dsw-alias-state-error-primary: #d93a2b;
       --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
       --dsw-alias-border-l2: rgba(18, 17, 15, .12); --dsw-alias-border-l3: rgba(18, 17, 15, .22);
-      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .05);
-      margin: 0; padding: 32px; background: #e8e6df; color: var(--dsw-alias-label-primary);
+      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .05); --dsw-alias-bg-layer-2: #fbfaf7;
+      margin: 0; padding: 24px; background: #e8e6df; color: var(--dsw-alias-label-primary);
       font: 13px/1.6 var(--dsw-font-family);
     }
     body[data-ds-dark-theme] {
       --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
       --dsw-alias-border-l2: rgba(255, 255, 255, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .18);
-      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06); --dsw-alias-state-error-primary: #f0584a;
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06); --dsw-alias-state-error-primary: #f0584a; --dsw-alias-bg-layer-2: #252422;
       background: #12110f;
     }
-    .dialog { margin: 0 auto; border-radius: 12px; background: #fbfaf7; box-shadow: 0 12px 40px #0003; }
-    body[data-ds-dark-theme] .dialog { background: #252422; }
-    .content { padding: 20px 20px 8px; }
-    .content h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
-    .content p.desc { margin: 0 0 14px; font-size: 12.5px; color: var(--dsw-alias-label-tertiary); }
-    .footer { padding: 12px 20px 16px; }
+    .panel { display: flex; width: 800px; height: 560px; margin: 0 auto; border-radius: 12px; background: var(--dsw-alias-bg-layer-2); box-shadow: 0 12px 40px #0003; overflow: hidden; }
+    .nav { width: 188px; padding: 22px 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; }
+    .nav b { padding: 0 12px 14px; font-size: 16px; font-weight: 500; }
+    .nav span { padding: 9px 12px; border-radius: 6px; font-size: 14px; }
+    .nav span.on { background: var(--dsw-alias-interactive-bg-hover); }
+    .content { flex: 1; min-width: 0; padding: 54px 24px 24px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -41,6 +41,7 @@
       const style = document.createElement('style')
       style.textContent = new Function(`return ${body}`)().join('')
       document.head.append(style)
+      const confirm = location.search.includes('confirm')
       const rows = [
         ['开屏退场动画调试', 'Deepseek Theme · 10月11日 23:12', true],
         ['推理强度滑块的点阵特效参考 Claude Code 的实现方式', 'Deepseek Theme · 10月12日 14:05', true],
@@ -49,19 +50,21 @@
         ['数据清洗脚本', 'default-workspace · 10月2日 18:22', false, 'failed', '删除失败'],
       ]
       document.getElementById('root').innerHTML = `
-        <div class="dialog rl-arc">
-          <div class="content"><h2>归档对话管理</h2><p class="desc">共 5 个已归档对话。删除会把对话记录移到废纸篓，可以找回；重启 Harness 后从侧栏消失。</p>
-            <div class="rl-arc-bar"><label class="rl-arc-all"><input type="checkbox" class="rl-arc-check"><span>全选</span></label><span class="rl-arc-count">已选 2 个</span></div>
+        <div class="panel">
+          <div class="nav"><b>设置</b><span>账户</span><span>通用</span><span>模型</span><span>插件</span><span>智能体预设</span><span class="on">归档对话</span></div>
+          <div class="content"><div class="rl-arcs">
+            <h2 class="rl-arcs-h">归档对话</h2>
+            <p class="rl-arcs-intro">共 5 个已归档对话。删除会把对话记录移到废纸篓，可以找回；重启 Harness 后从侧栏消失。</p>
+            <div class="rl-arc-bar"><label class="rl-arc-all"><input type="checkbox" class="rl-arc-check"><span>全选</span></label><span class="rl-arc-count">已选 2 个</span>
+              <span class="rl-arc-progress">${confirm ? '' : '正在删除 1/2'}</span>
+              <button type="button" class="rl-arc-btn rl-arc-btn--danger" ${confirm ? 'data-confirm="true"' : ''}>${confirm ? '确认删除 2 个' : '删除所选（2）'}</button></div>
             <div class="rl-arc-list">${rows.map(([title, meta, sel, state, note]) => `
               <label class="rl-arc-row" ${sel ? 'data-selected="true"' : ''} ${state ? `data-state="${state}"` : ''}>
                 <input type="checkbox" class="rl-arc-check" ${sel ? 'checked' : ''}>
                 <span class="rl-arc-main"><span class="rl-arc-title">${title}</span><span class="rl-arc-meta">${meta}</span></span>
                 ${note ? `<span class="rl-arc-note">${note}</span>` : ''}
               </label>`).join('')}</div>
-          </div>
-          <div class="footer"><div class="rl-arc-foot"><span class="rl-arc-progress">正在删除 1/2</span>
-            <button type="button" class="rl-arc-btn">关闭</button>
-            <button type="button" class="rl-arc-btn rl-arc-btn--danger" ${location.search.includes('confirm') ? 'data-confirm="true"' : ''}>${location.search.includes('confirm') ? '确认删除 2 个' : '删除所选（2）'}</button></div></div>
+          </div></div>
         </div>`
     })
   </script>
