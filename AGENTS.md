@@ -40,7 +40,7 @@ dsh plugin --profile desktop add "<absolute repository path>"
 
 ## Configure
 
-Prefer the UI: the config page (sidebar **插件** → this plugin → **配置**) or the `/splash` command; both save through dsh settings, and the page's single **恢复默认** button stages a reset of every changed field. Otherwise, append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
+Prefer the UI: the config page (sidebar **插件** → this plugin → **配置**) or the `/splash` command; both save through dsh settings. The page saves each change immediately (text fields on blur or Enter), its single **恢复默认** button resets every changed field at once, and its preview plays the current settings. Otherwise, append an override to `~/.dsh/profiles/desktop/cordis.patch.yml` and keep the existing content. The override replaces the whole `config` block; omitted keys fall back to their defaults. Restart the app afterwards.
 
 ```yaml
 - id: rhine-splash
