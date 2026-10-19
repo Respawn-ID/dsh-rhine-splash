@@ -29,7 +29,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 | 开屏动画 | ![浅色开屏动画](screenshots/splash-light.png) | ![深色开屏动画](screenshots/splash-dark.png) |
 | 主界面 | ![浅色主界面](screenshots/home-light.png) | ![深色主界面](screenshots/home-dark.png) |
 
-开屏动画截图来自本仓库的预览页面。主界面截图来自 DeepSeek Harness 网页版 0.2.0-rc.2，拍摄于 v0.2.0，不含之后加入的空白页背景、推理强度滑块和计费卡片。
+开屏动画截图来自本仓库的预览页面。主界面截图来自 DeepSeek Harness 网页版 0.2.1-rc.2 的全新配置（未登录、未配置 API Key），空白页背景为「完整开屏底」。由于没有可用的模型，截图中不显示推理强度滑块。
 
 ## 环境要求
 
