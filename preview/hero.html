@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hero Preview</title>
+  <style>
+    /* Stand-ins for the app's tokens and the blank conversation page, so the
+       background and resume styles from lib/client.js render as in the app.
+       URL: ?bg=grid|bars|full  ?fx=scan|iris|glitch  ?at=<ms> freezes every
+       animation at that time  ?shot hides the controls  #dark */
+    body {
+      --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
+      --dsw-static-deepseek-500: #e46f24;
+      --dsw-alias-bg-base: #fbfaf7; --side: #f4f3ef; --card: #ffffff;
+      --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
+      --dsw-alias-border-l2: rgba(18, 17, 15, .1);
+      margin: 0; height: 100vh; overflow: hidden; color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-bg-base); font: 13px/1.5 var(--dsw-font-family);
+    }
+    body[data-ds-dark-theme] {
+      --dsw-static-deepseek-500: #f0893e;
+      --dsw-alias-bg-base: #1d1c1a; --side: #191816; --card: #2d2c29;
+      --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
+      --dsw-alias-border-l2: rgba(255, 255, 255, .08);
+    }
+    .app { display: flex; height: 100vh; }
+    .side { width: 280px; flex: none; box-sizing: border-box; padding: 24px 16px; background: var(--side); border-right: 1px solid var(--dsw-alias-border-l2); }
+    .side b { display: block; margin: 0 4px 28px; letter-spacing: .08em; font-size: 13px; }
+    .side span { display: block; padding: 8px 12px; border-radius: 6px; color: var(--dsw-alias-label-secondary); }
+    .main { flex: 1; min-width: 0; }
+    /* Mirrors the conversation root: position, background and hero layout. */
+    .root { position: relative; display: flex; flex-direction: column; height: 100%; background: var(--dsw-alias-bg-base);
+      --rl-img-bars-light: url(../assets/bars-light.jpg); --rl-img-bars-dark: url(../assets/bars-dark.jpg); }
+    .header { height: 52px; flex: none; }
+    .body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding-bottom: 52px; }
+    .stack { width: min(776px, calc(100% - 48px)); display: flex; flex-direction: column; gap: 12px; }
+    .title { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; font-size: 26px; font-weight: 600; }
+    .title i { width: 30px; height: 30px; background: var(--dsw-alias-label-primary); }
+    .chips { display: flex; gap: 22px; padding-left: 12px; color: var(--dsw-alias-label-secondary); }
+    .card { height: 116px; box-sizing: border-box; padding: 14px 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px;
+      background: var(--card); color: var(--dsw-alias-label-tertiary); box-shadow: 0 2px 10px rgba(0, 0, 0, .04); }
+    .ctl { position: fixed; right: 16px; top: 12px; z-index: 2147483647; display: flex; gap: 6px; }
+    .ctl button { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--card); color: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="side"><b>DEEPSEEK HARNESS</b><span>新会话</span><span>插件</span><span>默认工作区</span></div>
+    <div class="main"><div class="root" data-phase="hero">
+      <div class="header"></div>
+      <div class="body"><div class="stack">
+        <div class="title"><i></i>探索未至之境</div>
+        <div class="chips"><span>默认工作区</span><span>标准模式</span></div>
+        <div class="card">描述你想要构建的内容，/ 调用指令，@ 文件或对话</div>
+      </div></div>
+    </div></div>
+  </div>
+  <div class="ctl" id="ctl"></div>
+  <script>
+    const params = new URLSearchParams(location.search)
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    document.documentElement.dataset.rlHero = params.get('bg') || 'grid'
+    // Pull the CSS array and the resume-layer block straight out of
+    // lib/client.js so this page never drifts from the shipped code.
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const css = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${css}`)().join('')
+      document.head.append(style)
+      const block = src.slice(src.indexOf('// <resume-layer>'), src.indexOf('// </resume-layer>'))
+      const { RESUME_MS, resumeLayer } = new Function(`${block}; return { RESUME_MS, resumeLayer }`)()
+      const freeze = () => {
+        if (!params.has('at')) return
+        const at = Number(params.get('at'))
+        for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at }
+      }
+      const play = (kind) => {
+        document.querySelector('.rl-resume')?.remove()
+        const node = resumeLayer(document, kind)
+        document.body.append(node)
+        if (!params.has('at')) setTimeout(() => node.remove(), RESUME_MS[kind])
+        freeze()
+      }
+      const ctl = document.getElementById('ctl')
+      if (!params.has('shot')) {
+        for (const bg of ['grid', 'bars', 'full', 'off']) {
+          const button = document.createElement('button')
+          button.textContent = bg
+          button.onclick = () => { document.documentElement.dataset.rlHero = bg }
+          ctl.append(button)
+        }
+        for (const kind of Object.keys(RESUME_MS)) {
+          const button = document.createElement('button')
+          button.textContent = `▶ ${kind}`
+          button.onclick = () => play(kind)
+          ctl.append(button)
+        }
+      }
+      requestAnimationFrame(() => params.get('fx') ? play(params.get('fx')) : freeze())
+    })
+  </script>
+</body>
+</html>

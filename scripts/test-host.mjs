@@ -52,6 +52,22 @@ assert.equal(resolveConfig({ exit: ' iris ' }).exit, 'iris');
 for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
   assert.equal(resolveConfig({ exit }).exit, 'random');
 }
+assert.equal(DEFAULTS.heroBackground, 'random');
+assert.equal(DEFAULTS.resumeEffect, 'random');
+assert.equal(DEFAULTS.resumeTrigger, 'away');
+for (const [key, choices] of [
+  ['heroBackground', ['random', 'grid', 'bars', 'full', 'off']],
+  ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],
+  ['resumeTrigger', ['away', 'always', 'hidden']],
+]) {
+  for (const value of choices) {
+    assert.equal(resolveConfig({ [key]: value })[key], value);
+  }
+  assert.equal(resolveConfig({ [key]: ' ' + choices[1] + ' ' })[key], choices[1]);
+  for (const value of ['sparkle', '', 'RANDOM', 1, null]) {
+    assert.equal(resolveConfig({ [key]: value })[key], DEFAULTS[key]);
+  }
+}
 const defaults = resolveConfig();
 assert.deepEqual(defaults, DEFAULTS);
 assert.notEqual(defaults, DEFAULTS);
@@ -121,13 +137,13 @@ const imageBuffers = Object.freeze({
 assert.equal(buildAssetStyle(), '');
 assert.equal(buildAssetStyle({}), '');
 assert.equal(buildAssetStyle({ barsLight: undefined, barsDark: undefined, specimen: undefined }), '');
-const lightStyle = '#rhine-splash{--rl-img-bars-light:url("data:image/jpeg;base64,AP8BgA==")}';
+const lightStyle = '#rhine-splash,[data-phase=hero]{--rl-img-bars-light:url("data:image/jpeg;base64,AP8BgA==")}';
 assert.equal(buildAssetStyle({ barsLight: imageBuffers.barsLight }), lightStyle);
-const partialStyle = '#rhine-splash{--rl-img-bars-dark:url("data:image/jpeg;base64,Z3JhcGhpdGU=");--rl-img-specimen:url("data:image/jpeg;base64,/wB/")}';
+const partialStyle = '#rhine-splash,[data-phase=hero]{--rl-img-bars-dark:url("data:image/jpeg;base64,Z3JhcGhpdGU=");--rl-img-specimen:url("data:image/jpeg;base64,/wB/")}';
 assert.equal(buildAssetStyle({ barsDark: imageBuffers.barsDark, specimen: imageBuffers.specimen }), partialStyle);
 assert.ok(!partialStyle.includes('--rl-img-bars-light'));
 const allImageStyle = buildAssetStyle(imageBuffers);
-assert.equal(allImageStyle, '#rhine-splash{--rl-img-bars-light:url("data:image/jpeg;base64,AP8BgA==");--rl-img-bars-dark:url("data:image/jpeg;base64,Z3JhcGhpdGU=");--rl-img-specimen:url("data:image/jpeg;base64,/wB/")}');
+assert.equal(allImageStyle, '#rhine-splash,[data-phase=hero]{--rl-img-bars-light:url("data:image/jpeg;base64,AP8BgA==");--rl-img-bars-dark:url("data:image/jpeg;base64,Z3JhcGhpdGU=");--rl-img-specimen:url("data:image/jpeg;base64,/wB/")}');
 const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((match) => Buffer.from(match[1], 'base64'));
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
