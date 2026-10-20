@@ -40,7 +40,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 你可以从 GitHub、发布包或本地目录安装。下面步骤中的 `<来源>`，请替换为以下任意一种：
 
-- **GitHub**：`github:Respawn-ID/dsh-rhine-splash`。如需指定版本，在末尾加上版本标签，例如 `github:Respawn-ID/dsh-rhine-splash#v0.2.2`。
+- **GitHub**：`github:Respawn-ID/dsh-rhine-splash`。如需指定版本，在末尾加上版本标签，例如 `github:Respawn-ID/dsh-rhine-splash#v0.2.3`。
 - **发布包**：从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写文件的绝对路径。无法访问 GitHub 时，建议使用这种方式。
 - **本地目录**：克隆本仓库后，填写仓库的绝对路径。适合需要修改代码的情况。
 
