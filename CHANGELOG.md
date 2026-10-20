@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.3] - 2026-10-20
+
+新增莱茵通知，插件更名为「莱茵生命主题」，并重新整理设置页。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.2。
+
 ### 新增
 
 - **莱茵通知**：对话运行结束、等待授权或等待回答时发出提醒，包括系统通知（窗口在后台时发送，仅含对话标题与状态）、界面右上角带波纹动效的半透明提示卡片和提示音。点击通知或卡片即可打开对应对话；正在查看的对话不会重复提醒。可通过新选项 `notifySystem`、`notifyToast` 和 `notifySound` 分别开关。
@@ -89,7 +93,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.2...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.1.0...v0.2.0
