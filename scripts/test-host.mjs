@@ -55,7 +55,7 @@ for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
 assert.equal(DEFAULTS.heroBackground, 'random');
 assert.equal(DEFAULTS.resumeEffect, 'random');
 assert.equal(DEFAULTS.resumeTrigger, 'away');
-for (const key of ['notifySystem', 'notifyToast', 'notifySound']) {
+for (const key of ['notifyCurrent', 'notifyOthers', 'notifyAway', 'notifySystem', 'notifyToast', 'notifySound']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);
