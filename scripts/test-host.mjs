@@ -55,6 +55,12 @@ for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
 assert.equal(DEFAULTS.heroBackground, 'random');
 assert.equal(DEFAULTS.resumeEffect, 'random');
 assert.equal(DEFAULTS.resumeTrigger, 'away');
+for (const key of ['notifySystem', 'notifyToast', 'notifySound']) {
+  assert.equal(DEFAULTS[key], true);
+  assert.equal(resolveConfig({ [key]: false })[key], false);
+  assert.equal(resolveConfig({ [key]: true })[key], true);
+  for (const value of ['false', 0, null, {}]) assert.equal(resolveConfig({ [key]: value })[key], true);
+}
 for (const [key, choices] of [
   ['heroBackground', ['random', 'grid', 'bars', 'full', 'off']],
   ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],

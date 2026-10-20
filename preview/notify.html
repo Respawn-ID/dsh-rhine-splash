@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notify Preview</title>
+  <style>
+    /* Stand-ins for the app's tokens, so the notice styles from lib/client.js
+       render as in the app. URL: ?at=<ms> freezes every animation at that
+       time  ?shot hides the controls  #dark */
+    body {
+      --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
+      --dsw-radius-xs: 2px; --dsw-radius-md: 6px;
+      --dsw-static-deepseek-500: #e46f24;
+      --dsw-alias-bg-base: #fbfaf7;
+      --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
+      --dsw-alias-border-l2: rgba(18, 17, 15, .12); --dsw-alias-border-l3: rgba(18, 17, 15, .22);
+      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .05);
+      --dsw-elevation-prominent: 0 8px 24px rgba(18, 17, 15, .1);
+      margin: 0; height: 100vh; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+      font: 13px/1.5 var(--dsw-font-family);
+    }
+    body[data-ds-dark-theme] {
+      --dsw-static-deepseek-500: #f0893e; --dsw-alias-bg-base: #1d1c1a;
+      --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
+      --dsw-alias-border-l2: rgba(255, 255, 255, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .2);
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06);
+      --dsw-elevation-prominent: 0 8px 24px rgba(0, 0, 0, .4);
+    }
+    .ctl { position: fixed; left: 16px; top: 16px; display: flex; gap: 6px; }
+    .ctl button { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="ctl" id="ctl"></div>
+  <script>
+    const params = new URLSearchParams(location.search)
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    // Pull the CSS array and the notice-layer block straight out of
+    // lib/client.js so this page never drifts from the shipped code.
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const css = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${css}`)().join('')
+      document.head.append(style)
+      const block = src.slice(src.indexOf('// <notice-layer>'), src.indexOf('// </notice-layer>'))
+      const { noticeCard, noticeHost, playChime } = new Function(`${block}; return { noticeCard, noticeHost, playChime }`)()
+      const samples = {
+        done: { kind: 'done', title: '开屏退场动画调试', status: '运行结束', hint: '点击查看', stamp: '14:32', closeLabel: '关闭' },
+        pending: { kind: 'pending', title: '推理强度滑块的点阵特效参考实现方式', status: '等待授权', hint: '点击处理', stamp: '14:35', closeLabel: '关闭' },
+      }
+      const show = (kind, sound) => {
+        const card = noticeCard(document, samples[kind])
+        noticeHost(document).append(card)
+        card.querySelector('.rl-ntf-close').onclick = (event) => { event.stopPropagation(); card.remove() }
+        if (sound) playChime(kind)
+      }
+      if (!params.has('shot')) {
+        for (const kind of Object.keys(samples)) {
+          const button = document.createElement('button')
+          button.textContent = `▶ ${kind}`
+          button.onclick = () => show(kind, true)
+          document.getElementById('ctl').append(button)
+        }
+      }
+      show('pending'); show('done')
+      if (params.has('at')) {
+        const at = Number(params.get('at'))
+        requestAnimationFrame(() => { for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at } })
+      }
+    })
+  </script>
+</body>
+</html>
