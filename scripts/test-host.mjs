@@ -291,6 +291,11 @@ try {
   mkdirSync(lib);
   mkdirSync(images);
   writeFileSync(join(lib, 'index.mjs'), readFileSync(new URL('../lib/index.js', import.meta.url)));
+  mkdirSync(join(lib, 'host'));
+  for (const filename of (await import('node:fs')).readdirSync(new URL('../lib/host/', import.meta.url))) {
+    if (filename.endsWith('.js')) writeFileSync(join(lib, 'host', filename), readFileSync(new URL(`../lib/host/${filename}`, import.meta.url)));
+  }
+  writeFileSync(join(fixture, 'package.json'), '{"type":"module"}');
   writeFileSync(join(lib, 'splash.css'), fakeAssets.css);
   writeFileSync(join(lib, 'splash.js'), fakeAssets.js);
   writeFileSync(join(images, 'bars-light.jpg'), imageBuffers.barsLight);

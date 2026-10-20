@@ -32,6 +32,7 @@
   },
   "files": [
     "lib/index.js",
+    "lib/host/*.js",
     "lib/splash.css",
     "lib/splash.js",
     "assets/*.jpg",
