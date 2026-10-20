@@ -7,6 +7,7 @@ A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in 
 | Item | Value |
 | --- | --- |
 | Package / bundle name | `dsh-rhine-splash` |
+| Display name | 莱茵生命主题 (en: Rhine Lab Theme) — what the Plugins page lists |
 | Plugin entry id | `rhine-splash` |
 | Version | see `package.json` |
 | Install source (remote) | `github:Respawn-ID/dsh-rhine-splash` (pin with `#vX.Y.Z`), or the absolute path of a release `.tgz` from https://github.com/Respawn-ID/dsh-rhine-splash/releases |
