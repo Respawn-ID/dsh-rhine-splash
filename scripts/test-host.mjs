@@ -154,7 +154,7 @@ const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((matc
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
 assert.equal(resolveConfig({}).effortSlider, true);
-for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider', 'billing']) {
+for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider', 'billing', 'todoCenter']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);
