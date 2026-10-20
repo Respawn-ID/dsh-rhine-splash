@@ -27,11 +27,16 @@
       --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06);
       --dsw-elevation-prominent: 0 8px 24px rgba(0, 0, 0, .4);
     }
-    .ctl { position: fixed; left: 16px; top: 16px; display: flex; gap: 6px; }
+    /* Busy backdrop so the frosted cards have something to blur. */
+    .backdrop { position: fixed; inset: 0; background: url(../assets/bars-light.jpg) right center / cover; }
+    body[data-ds-dark-theme] .backdrop { background-image: url(../assets/bars-dark.jpg); }
+    .backdrop p { position: absolute; right: 40px; top: 70px; width: 420px; margin: 0; font-size: 15px; line-height: 1.7; color: var(--dsw-alias-label-secondary); }
+    .ctl { position: fixed; left: 16px; top: 16px; z-index: 1; display: flex; gap: 6px; }
     .ctl button { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
   </style>
 </head>
 <body>
+  <div class="backdrop"><p>莱茵生命 · 研究档案 RL-DSH/0.2 · 终端已就绪。这段文字和板条阵列只是为了让通知卡片背后有内容，便于检查毛玻璃的透明与模糊效果。DEEPSEEK HARNESS INTERNAL TERMINAL</p></div>
   <div class="ctl" id="ctl"></div>
   <script>
     const params = new URLSearchParams(location.search)
@@ -64,6 +69,11 @@
         }
       }
       show('pending'); show('done')
+      // ?tap: press the newest card near its middle to show the press ripple.
+      if (params.has('tap')) {
+        const card = document.querySelector('.rl-ntf'), box = card.getBoundingClientRect()
+        card.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: box.left + 190, clientY: box.top + 36 }))
+      }
       if (params.has('at')) {
         const at = Number(params.get('at'))
         requestAnimationFrame(() => { for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at } })
