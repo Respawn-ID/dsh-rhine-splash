@@ -7,7 +7,7 @@
   <style>
     /* Stand-ins for the app's tokens, so the to-do styles from lib/client.js
        render as in the app. The markup mirrors TodoWidget. URL:
-       ?mode=tile|bar|rail  ?empty  ?closed  ?at=<ms> freezes every animation
+       ?mode=bar|rail  ?nobill  ?empty  ?closed  ?at=<ms> freezes every animation
        at that time  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
@@ -68,7 +68,7 @@
   <div class="ctl" id="ctl"></div>
   <script>
     const params = new URLSearchParams(location.search)
-    const mode = ['tile', 'bar', 'rail'].includes(params.get('mode')) ? params.get('mode') : 'tile'
+    const mode = params.get('mode') === 'rail' ? 'rail' : 'bar'
     const empty = params.has('empty')
     document.body.dataset.mode = mode
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
@@ -115,7 +115,7 @@
         ])
       trigger.querySelector('svg')?.setAttribute('viewBox', '0 0 16 16')
       foot.append(trigger)
-      if (mode === 'tile') {
+      if (mode === 'bar' && !params.has('nobill')) {
         foot.append(el('div', { class: 'rl-bill', 'data-state': 'ready' }, [
           el('div', { class: 'rl-bill-row rl-bill-row--cost' }, [el('span', { class: 'rl-bill-k', text: '本会话' }), el('span', { class: 'rl-bill-v', text: '¥0.042' })]),
           el('div', { class: 'rl-bill-row rl-bill-row--balance' }, [el('span', { class: 'rl-bill-k', text: '余额' }), el('span', { class: 'rl-bill-v', text: '¥12.30' })]),
@@ -149,7 +149,7 @@
       }
 
       if (!params.has('shot')) {
-        const links = [['tile', '?mode=tile'], ['bar', '?mode=bar'], ['rail', '?mode=rail'], ['empty', `?mode=${mode}&empty`], ['closed', `?mode=${mode}&closed`], ['dark', `${location.search}#dark`]]
+        const links = [['bar', '?mode=bar'], ['no billing', '?mode=bar&nobill'], ['rail', '?mode=rail'], ['empty', `?mode=${mode}&empty`], ['closed', `?mode=${mode}&closed`], ['dark', `${location.search}#dark`]]
         for (const [label, href] of links) document.getElementById('ctl').append(el('a', { href, text: label }))
         document.getElementById('ctl').lastChild.onclick = () => setTimeout(() => location.reload())
       }
