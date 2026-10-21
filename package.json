@@ -45,7 +45,8 @@
   ],
   "scripts": {
     "assets": "node scripts/render-assets.mjs",
-    "test": "node scripts/test-host.mjs",
+    "test": "node scripts/test-host.mjs && node scripts/test-client.mjs",
+    "check-dsh": "node scripts/check-dsh.mjs",
     "preview": "python3 -m http.server 4173"
   },
   "dsh": {
