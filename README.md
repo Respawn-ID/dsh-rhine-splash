@@ -195,6 +195,13 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 - 本对话的费用按 DeepSeek 官方价格估算：按所用模型和当时所处时段的单价，把缓存命中、未命中和输出 token 分别计价，闲时按半价算，不计节假日。第一次看到一个已经用过的对话时，之前的用量按当前时段单价一次性估算。鼠标停在这一行上可以看到 token 明细。
 - 余额由插件在 Harness 后台用你在 Harness 里配置的 DeepSeek API Key 向 DeepSeek 官方余额接口查询，每分钟最多查一次。API Key 只在后台使用，不会传到界面。没有配置 API Key 时显示「未配置 Key」。
+- 点击这张卡片会弹出费用面板：
+  - 本对话、今日、近 7 天（可切换为近 30 天）的花费，以及每天花费的柱状图，今天用强调色标出；
+  - 按模型的花费占比，鼠标停在上面可以看到 token 明细；
+  - 花费最多的几个对话（累计），点击即可打开；
+  - 预算进度和账户余额，右下角的「设置」可以直接跳到本插件的设置。
+- 预算分「每日」和「单个对话」两种，可以在面板里点「上限」直接修改，也可以在设置页「工具」中填写，0 表示不提醒。花费达到上限的 80% 和超过上限时，各用莱茵通知提醒一次，只在真正产生新花费时检查，不会拦住对话。
+- 所有已加载、正在运行的对话都会在后台实时记账，不必打开对话。按天统计从这个版本开始；更早的花费只计入各对话的累计金额。所有记录只保存在本机。
 - 不需要时，可以在设置页关闭「计费与余额」。
 
 ### 删除归档对话
@@ -246,6 +253,8 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 | `effortSlider` | `true` | 是否在输入框旁显示推理强度滑块 |
 | `billing` | `true` | 是否在侧栏左下角显示本对话费用和账户余额 |
 | `todoCenter` | `true` | 是否在侧栏左下角显示待办中心，参见[待办中心](#待办中心) |
+| `budgetDaily` | `0` | 每日预算，按账户余额的币种计算，最多两位小数；0 表示不提醒，参见[计费与余额](#计费与余额) |
+| `budgetSession` | `0` | 单个对话的预算，规则同上 |
 | `heroBackground` | `random` | 空白页背景：`random`（每次启动随机）、`grid`、`bars`、`full` 或 `off`，参见[空白页背景](#空白页背景) |
 | `resumeEffect` | `random` | 切回动效：`random`（每次随机）、`scan`、`iris`、`glitch` 或 `off`，参见[切回动效](#切回动效) |
 | `resumeTrigger` | `away` | 什么时候播放切回动效：`away`（离开 30 秒后）、`always`（每次切回）或 `hidden`（最小化或隐藏后） |
@@ -365,7 +374,7 @@ npm run preview
 
 然后在浏览器中打开 <http://localhost:4173/preview/>。页面底部可以切换退场动画、深浅色、时长等选项，按 <kbd>R</kbd> 可以重播。也可以通过 URL 参数指定，例如 `?theme=dark&exit=iris&duration=6000`。
 
-`preview/notify.html` 用来检查莱茵通知的提示卡片（按钮可以试听提示音），`preview/todo.html` 用来检查待办中心的入口和面板（`?mode=rail` 查看侧栏收起时的样子，`?nobill` 去掉计费卡片，`?empty` 查看空状态，`?at=500` 把动画停在 500 毫秒处，`#dark` 查看深色），`preview/hero.html` 用来检查空白页的三种背景和三种切回动效（加上 `?bg=bars`、`?fx=iris` 指定，`?at=500` 把动画停在 500 毫秒处，`#dark` 查看深色），`preview/brand.html` 用来对比两种品牌标志，`preview/billing.html` 用来检查左下角计费卡片，`preview/archives.html` 用来检查归档对话管理页，`preview/effort.html` 用来检查推理强度滑块的各档样式（加上 `#dark` 查看深色，加上 `?inspect` 以 3 倍分辨率查看最高档点阵）。
+`preview/notify.html` 用来检查莱茵通知的提示卡片（按钮可以试听提示音），`preview/cost.html` 用来检查费用面板（`?range=30` 切到近 30 天，`?editing` 查看修改预算的输入框，`?peak` 查看高峰时段，`?empty` 查看空状态），`preview/todo.html` 用来检查待办中心的入口和面板（`?mode=rail` 查看侧栏收起时的样子，`?nobill` 去掉计费卡片，`?empty` 查看空状态，`?at=500` 把动画停在 500 毫秒处，`#dark` 查看深色），`preview/hero.html` 用来检查空白页的三种背景和三种切回动效（加上 `?bg=bars`、`?fx=iris` 指定，`?at=500` 把动画停在 500 毫秒处，`#dark` 查看深色），`preview/brand.html` 用来对比两种品牌标志，`preview/billing.html` 用来检查左下角计费卡片，`preview/archives.html` 用来检查归档对话管理页，`preview/effort.html` 用来检查推理强度滑块的各档样式（加上 `#dark` 查看深色，加上 `?inspect` 以 3 倍分辨率查看最高档点阵）。
 
 预览页面只用来检查动画效果。注入页面的逻辑请通过测试和实际运行 Harness 来验证。
 

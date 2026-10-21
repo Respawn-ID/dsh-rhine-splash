@@ -42,6 +42,12 @@ assert.equal(DEFAULTS.logo, 'plate');
 assert.equal(DEFAULTS.accent, 'rhine');
 assert.equal(DEFAULTS.accentColor, '#e46f24');
 assert.equal(DEFAULTS.base, 'warm');
+for (const key of ['budgetDaily', 'budgetSession']) {
+  assert.equal(DEFAULTS[key], 0);
+  for (const [value, expected] of [[0, 0], [12.34, 12.34], [12.345, 12.35], [100000, 100000]]) assert.equal(resolveConfig({ [key]: value })[key], expected);
+  for (const value of [-1, NaN, Infinity, '12.34', 100000.01, null, {}, []]) assert.equal(resolveConfig({ [key]: value })[key], 0);
+}
+
 assert.ok(Object.isFrozen(ACCENTS));
 for (const [key, choices] of [['accent', [...Object.keys(ACCENTS), 'custom']], ['base', ['warm', 'neutral', 'official']]]) {
   for (const value of choices) assert.equal(resolveConfig({ [key]: value })[key], value);

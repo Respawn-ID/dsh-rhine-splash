@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { DEFAULTS } from "../lib/index.js";
 
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
-const features = ["live", "notify", "todo", "billing", "effort", "archives", "brand", "settings", "command"];
+const features = ["live", "notify", "todo", "billing", "cost", "effort", "archives", "brand", "settings", "command"];
 const noop = () => {};
 const element = () => {
   const attributes = new Map(), properties = new Map(), events = new Map(), children = [];
@@ -41,7 +41,7 @@ function store(value) {
   };
 }
 
-async function scenario({ config = {}, change = noop, apply = true } = {}, check = noop) {
+async function scenario({ config = {}, change = noop, apply = true, stored = {} } = {}, check = noop) {
   const timers = new Map();
   let timerId = 0, now = 0;
   const setTimer = (fn, delay = 0) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; };
@@ -53,6 +53,7 @@ async function scenario({ config = {}, change = noop, apply = true } = {}, check
       const [id, timer] = next;
       timers.delete(id);
       now = timer.at;
+      if (timer.repeat) timers.set(id, { ...timer, at: now + timer.repeat });
       timer.fn();
     }
     now = end;
@@ -91,18 +92,22 @@ async function scenario({ config = {}, change = noop, apply = true } = {}, check
   let factory;
   const windowEvents = element();
   const notifications = [];
+  const memory = new Map(Object.entries(stored));
   const globals = {
     window: globalThis,
     document: { ...element(), createElement: element, head: element(), body: element(), documentElement: element(), visibilityState: "visible", hasFocus: () => true, getElementById: () => null },
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     requestAnimationFrame: (fn) => setTimer(fn, 16), cancelAnimationFrame: (id) => timers.delete(id),
     setTimeout: setTimer, clearTimeout: (id) => timers.delete(id),
+    setInterval: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay, repeat: delay }); return id; },
+    clearInterval: (id) => timers.delete(id),
+    fetch: async () => ({ ok: true, json: async () => ({ status: "no-key" }) }),
     addEventListener: windowEvents.addEventListener, removeEventListener: windowEvents.removeEventListener,
     Notification: class { static permission = "granted"; constructor(title, options) { notifications.push({ title, options }); } },
     __RHINE_SPLASH__: { ...DEFAULTS, ...config },
     __RHINE_BRAND__: { mark: "<svg/>", name: "Rhine", hero: "<svg/>", marks: { plate: "plate mark", cell: "cell mark" }, heroes: { plate: "plate hero", cell: "cell hero" } },
     __ModuleLoader__: { load: (definition) => { factory = definition.factory; } },
-    localStorage: undefined
+    localStorage: { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, String(value)) }
   };
   const saved = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const warnings = [], originalWarn = console.warn;
@@ -153,7 +158,6 @@ async function scenario({ config = {}, change = noop, apply = true } = {}, check
   }
   try {
     for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-    delete globalThis.localStorage;
     console.warn = (...args) => warnings.push(args);
     vm.runInThisContext(source, { filename: "lib/client.js" });
     client = factory((name) => { assert.ok(Object.hasOwn(modules, name), name); return modules[name]; });
@@ -168,7 +172,26 @@ async function scenario({ config = {}, change = noop, apply = true } = {}, check
       });
       try { return Component(props); } finally { Object.assign(react, savedHooks); }
     };
-    await check({ ...client, render, windowEvents, notifications, slots, commands, warnings, advance, status, services, configStore, dispose });
+    const mount = (Component, props) => {
+      const cells = [];
+      let cursor = 0;
+      return { render() {
+        cursor = 0;
+        const savedHooks = { ...react };
+        Object.assign(react, {
+          useSyncExternalStore: (_, snapshot) => snapshot(), useCallback: (fn) => fn,
+          useState(initial) {
+            const index = cursor++;
+            if (!(index in cells)) cells[index] = typeof initial === "function" ? initial() : initial;
+            return [cells[index], (value) => { cells[index] = typeof value === "function" ? value(cells[index]) : value; }];
+          },
+          useRef(value) { const index = cursor++; return cells[index] ||= { current: value }; },
+          useMemo: (fn) => fn(), useEffect: noop, useLayoutEffect: noop
+        });
+        try { return Component(props); } finally { Object.assign(react, savedHooks); }
+      } };
+    };
+    await check({ ...client, memory, render, mount, windowEvents, notifications, slots, commands, warnings, advance, status, services, configStore, dispose });
   } finally {
     if (client) dispose();
     console.warn = originalWarn;
@@ -497,7 +520,7 @@ await scenario({ config: { todoCenter: false, notifySystem: false, notifyToast: 
   assert.deepEqual(problems(compat), { todo: "absent", notify: "absent" });
 });
 await scenario({ config: { notifySystem: false, notifyToast: false, notifySound: false } }, ({ status, services, notifications, configStore, internals: { compat } }) => {
-  assert.equal(status.listeners.size, 2, "notice watch starts even when channels are off");
+  assert.equal(status.listeners.size, 3, "notice, to-do and billing watch start even when channels are off");
   document.hasFocus = () => false;
   services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Conversation" } } });
   const endRun = () => { status.emit(new Map([["a", { running: true }]])); status.emit(new Map([["a", { running: false }]])); };
@@ -576,4 +599,293 @@ await scenario({}, ({ configStore, internals: { compat } }) => {
   assert.deepEqual(problems(compat), { live: "crashed" });
 });
 
-console.log("Client tests passed (locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, helpers, safe boundaries, degraded services, absence timing, disposal).");
+// Daily data retains dates, currencies and token splits without re-dating legacy costs.
+await scenario({ apply: false }, ({ internals: i, memory }) => {
+  const { dayKey, rangeDays, addToDayLog, costSummary, readDayLog, writeDayLog } = i;
+  const now = new Date(2026, 9, 21, 0, 3).getTime();
+  assert.equal(dayKey(now), "2026-10-21");
+  assert.equal(dayKey(new Date(2026, 0, 1, 23, 59)), "2026-01-01");
+  assert.deepEqual(rangeDays(new Date(2026, 0, 2), 4), ["2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02"]);
+  assert.equal(rangeDays(now, 30).length, 30);
+  const empty = { v: 1, currency: "CNY", days: {} };
+  assert.deepEqual(readDayLog(), empty);
+  const sum = costSummary(empty, new Map([["legacy", { cost: 100 }]]), now, 7);
+  assert.equal(sum.today, 0);
+  assert.equal(sum.range, 0);
+  assert.deepEqual(sum.models, []);
+  assert.deepEqual(sum.sessions, new Map());
+  assert.equal(sum.days.length, 7);
+  const add = (log, day, model, sessionId, cost) => addToDayLog(log, { day, model, sessionId, cost, currency: "CNY", delta: { miss: 100, hit: 20, out: 3 } });
+  let log = add(empty, "2026-10-21", "flash", "a", 2);
+  log = add(log, "2026-10-21", "flash", "b", 3);
+  log = add(log, "2026-10-20", "pro", "a", 5);
+  log = add(log, "2026-10-01", "pro", "old", 10);
+  assert.deepEqual(empty.days, {}, "immutable input");
+  assert.deepEqual(log.days["2026-10-21"], { models: { flash: { cost: 5, miss: 200, hit: 40, out: 6 } }, sessions: { a: 2, b: 3 } });
+  const seven = costSummary(log, new Map(), now, 7);
+  assert.equal(seven.today, 5);
+  assert.equal(seven.range, 10);
+  assert.deepEqual(seven.days.map((row) => row.cost), [0, 0, 0, 0, 0, 5, 5]);
+  assert.deepEqual(seven.sessions, new Map([["a", 7], ["b", 3]]));
+  assert.deepEqual(seven.models.map(({ model, cost, share }) => [model, cost, share]), [["pro", 5, 0.5], ["flash", 5, 0.5]]);
+  const thirty = costSummary(log, new Map(), now, 30);
+  assert.equal(thirty.range, 20);
+  assert.deepEqual(thirty.models.map(({ model, share }) => [model, share]), [["pro", 0.75], ["flash", 0.25]]);
+  assert.deepEqual(thirty.models[0], { model: "pro", cost: 15, miss: 200, hit: 40, out: 6, share: 0.75 });
+  const keys = rangeDays(now, 63);
+  let old = add(empty, keys[0], "flash", "x", 1);
+  old = add(old, keys[1], "flash", "x", 2);
+  old = add(old, dayKey(now), "flash", "x", 3);
+  assert.ok(!Object.hasOwn(old.days, keys[0]));
+  assert.ok(Object.hasOwn(old.days, keys[1]), "62nd day is retained");
+  const usd = addToDayLog(log, { day: dayKey(now), model: "flash", sessionId: "usd", currency: "USD", cost: 0.1, delta: { miss: 1, hit: 0, out: 0 } });
+  assert.deepEqual(usd, { v: 1, currency: "USD", days: { "2026-10-21": { models: { flash: { cost: 0.1, miss: 1, hit: 0, out: 0 } }, sessions: { usd: 0.1 } } } });
+  writeDayLog(log);
+  assert.strictEqual(readDayLog(), log);
+  assert.deepEqual(JSON.parse(memory.get("rhine-splash:bill-days")), log);
+});
+for (const value of ["{", { v: 2, currency: "CNY", days: {} }, { v: 1, currency: "EUR", days: {} }, { v: 1, currency: "CNY", days: { "2026-02-30": { models: {}, sessions: {} } } }, { v: 1, currency: "CNY", days: { "2026-10-21": { models: { flash: { cost: -1, miss: 0, hit: 0, out: 0 } }, sessions: {} } } }]) {
+  await scenario({ apply: false, stored: { "rhine-splash:bill-days": typeof value === "string" ? value : JSON.stringify(value) } }, ({ internals: { readDayLog } }) => {
+    assert.deepEqual(readDayLog(), { v: 1, currency: "CNY", days: {} });
+  });
+}
+
+await scenario({ apply: false }, ({ internals: { specs, normalize }, memory }) => {
+  for (const field of ["budgetDaily", "budgetSession"]) {
+    const spec = specs().find((row) => row.field === field);
+    assert.equal(spec.format(undefined), "0");
+    assert.deepEqual(spec.parse(" 12.345 "), { kind: "set", value: 12.35 });
+    assert.deepEqual(spec.parse(""), { kind: "set", value: 0 });
+    assert.deepEqual(spec.parse("100000"), { kind: "set", value: 100000 });
+    for (const value of ["-1", "NaN", "Infinity", "1e6", "100000.01", "12,34"]) assert.equal(spec.parse(value), undefined);
+    for (const value of [-1, NaN, Infinity, "12.34", 100000.01, null]) assert.equal(normalize({ [field]: value })[field], 0);
+    assert.equal(normalize({ [field]: 12.34 })[field], 12.34);
+  }
+  assert.equal(memory.size, 0);
+});
+
+await scenario({ apply: false }, ({ internals: { budgetThresholds, rangeDays }, memory }) => {
+  const now = new Date(2026, 9, 21, 12).getTime();
+  const args = { now, sessionId: "a", daily: 7.99, session: 7.99, budgetDaily: 10, budgetSession: 10 };
+  const levels = (changes = {}) => budgetThresholds({ ...args, ...changes }).map(({ scope, level }) => [scope, level]);
+  assert.deepEqual(levels(), []);
+  assert.deepEqual(levels({ daily: 8, session: 8 }), [["daily", 80], ["session", 80]]);
+  assert.deepEqual(levels({ daily: 9, session: 9 }), []);
+  assert.deepEqual(levels({ daily: 10, session: 10 }), [["daily", 100], ["session", 100]]);
+  assert.deepEqual(levels({ daily: 12, session: 12 }), []);
+  assert.deepEqual(levels({ sessionId: "b", daily: 12, session: 8 }), [["session", 80]]);
+  assert.deepEqual(levels({ sessionId: "jump", daily: 12, session: 12 }), [["session", 100]], "a jump past both levels alerts once");
+  assert.deepEqual(levels({ sessionId: "jump", daily: 12, session: 13 }), []);
+  const tomorrow = new Date(2026, 9, 22, 12).getTime();
+  assert.deepEqual(levels({ now: tomorrow, daily: 8, session: 12 }), [["daily", 80]], "daily levels reset; conversation totals remain cumulative");
+  assert.deepEqual(levels({ now: tomorrow, daily: 10, session: 12 }), [["daily", 100]]);
+  assert.deepEqual(levels({ now: tomorrow, sessionId: "off", daily: 100, session: 100, budgetDaily: 0, budgetSession: 0 }), []);
+  const state = JSON.parse(memory.get("rhine-splash:budget-alerts"));
+  state.ids.stale = { day: rangeDays(now, 64)[0], levels: [80] };
+  memory.set("rhine-splash:budget-alerts", JSON.stringify(state));
+  levels({ now: tomorrow });
+  assert.ok(!Object.hasOwn(JSON.parse(memory.get("rhine-splash:budget-alerts")).ids, "stale"));
+  const original = localStorage.setItem;
+  localStorage.setItem = () => { throw new Error("storage full"); };
+  assert.deepEqual(levels({ now: tomorrow, sessionId: "memory", session: 8 }), [["session", 80]]);
+  assert.deepEqual(levels({ now: tomorrow, sessionId: "memory", session: 8 }), [], "in-memory fallback avoids repeated reminders");
+  localStorage.setItem = original;
+});
+
+// A loaded background face records without mounting the card or opening its session.
+for (const withStatus of [true, false]) {
+  let background, replacement, skipped, bindings, model;
+  await scenario({ change: (services) => {
+    if (!withStatus) delete services.uiSession;
+    background = store({ uncachedInputTokens: 1000000, cacheReadTokens: 500, outputTokens: 100 });
+    replacement = store({ uncachedInputTokens: 2000000, cacheReadTokens: 600, outputTokens: 200 });
+    skipped = store({ outputTokens: 1000000 });
+    const binding = (face) => ({ session: { projections: { faceOf: (name) => { assert.equal(name, "tokenUsage"); return face; } } } });
+    bindings = new Map([["background", binding(background)], ["sub", binding(skipped)], ["blank", binding(skipped)]]);
+    services.sessions.binding = (id) => bindings.get(id);
+    services.sessions.list.emit({ phase: "ready", byId: { background: { title: "Background" }, sub: { origin: "subagent" }, blank: { blank: true }, unloaded: {} } });
+    model = store({ current: { model: "deepseek-flash" } });
+    services.modelDirectories.directoryFor = () => ({ store: model });
+  } }, ({ internals: { readLedger, readDayLog, costSummary, usageTick }, services, status, dispose }) => {
+    const ledger = readLedger("background");
+    assert.ok(ledger.cost > 0);
+    assert.equal(ledger.model, "deepseek-flash");
+    assert.ok(Number.isFinite(ledger.at));
+    assert.equal(readLedger("sub"), null);
+    assert.equal(readLedger("blank"), null);
+    assert.equal(readLedger("unloaded"), null);
+    assert.equal(skipped.listeners.size, 0);
+    assert.equal(background.listeners.size, 1);
+    const before = usageTick.getSnapshot();
+    const dayTotal = () => costSummary(readDayLog(), new Map(), Date.now(), 7).today;
+    assert.equal(dayTotal(), ledger.cost);
+    background.emit({ uncachedInputTokens: 1500000, cacheReadTokens: 500, outputTokens: 100 });
+    const added = readLedger("background").cost;
+    assert.ok(added > ledger.cost);
+    assert.equal(dayTotal(), added);
+    assert.ok(usageTick.getSnapshot() > before);
+    background.emit(background.getSnapshot());
+    assert.equal(dayTotal(), added, "unchanged projections cannot double count");
+    bindings.set("background", { session: { projections: { faceOf: () => replacement } } });
+    if (withStatus) status.emit(new Map([["background", { running: true }]]));
+    else services.sessions.list.emit(services.sessions.list.getSnapshot());
+    assert.equal(background.listeners.size, 0);
+    assert.equal(replacement.listeners.size, 1);
+    assert.ok(readLedger("background").cost > added);
+    bindings.delete("background");
+    services.sessions.list.emit(services.sessions.list.getSnapshot());
+    assert.equal(replacement.listeners.size, 0);
+    assert.equal(model.listeners.size, 0);
+    dispose();
+  });
+}
+
+await scenario({ apply: false, stored: { "rhine-splash:bill:old": JSON.stringify({ currency: "CNY", cost: 10, seen: { miss: 100, hit: 0, out: 0 } }) } }, ({ internals: { readLedger, recordUsage, readDayLog, costSummary } }) => {
+  assert.equal(readLedger("old").model, undefined);
+  recordUsage("old", { uncachedInputTokens: 100 }, "deepseek-flash", "CNY");
+  assert.equal(costSummary(readDayLog(), new Map(), Date.now(), 7).today, 0);
+  recordUsage("old", { uncachedInputTokens: 200 }, "deepseek-flash", "CNY");
+  assert.ok(costSummary(readDayLog(), new Map(), Date.now(), 7).today > 0);
+  assert.ok(costSummary(readDayLog(), new Map(), Date.now(), 7).today < 1, "legacy cumulative cost is not added to today");
+});
+
+await scenario({ config: { notifyToast: false, notifySound: false, notifyCurrent: false, notifyOthers: false, notifyAway: false, budgetDaily: 1, budgetSession: 1 }, change: (services) => {
+  const templates = { budgetStatus: "Spent {spent} of {limit}", budgetNear: "{scope} at 80%", budgetOver: "{scope} at 100%" };
+  services.locale.bind = () => (key) => templates[key] || key;
+} }, async ({ services, notifications, internals: { compat }, slots }) => {
+  document.hasFocus = () => false;
+  const usage = store({ uncachedInputTokens: 1000000 });
+  const binding = { session: { projections: { faceOf: () => usage } } };
+  services.sessions.binding = () => binding;
+  services.modelDirectories.directoryFor = () => ({ store: store({ current: { model: "deepseek-flash" } }) });
+  services.sessions.list.emit({ phase: "ready", byId: { background: { title: "Budget background" } } });
+  assert.equal(notifications.length, 0, "the first record is a baseline, not fresh spending");
+  usage.emit({ uncachedInputTokens: 2000000 });
+  assert.equal(notifications.length, 2, "daily and conversation reminders bypass scene switches; a jump past both levels alerts once");
+  assert.ok(notifications.every(({ options }) => options.body.includes("¥")));
+  assert.equal(notifications.filter(({ title }) => title.includes("Budget background")).length, 1);
+  usage.emit(usage.getSnapshot());
+  usage.emit({ uncachedInputTokens: 3000000 });
+  assert.equal(notifications.length, 2, "levels already reached stay quiet");
+  const billing = slots.find(({ options }) => options.id === "rhine-billing").options.inject();
+  assert.equal(billing.getNavigation(), undefined);
+  assert.deepEqual(compat.getSnapshot(), []);
+});
+
+await scenario({}, async ({ slots, configStore, render, internals: { live } }) => {
+  const page = slots.find(({ options }) => options.name === "plugins.row.config").options.inject();
+  page.edit("title", "Unsaved page title");
+  const billing = slots.find(({ options }) => options.id === "rhine-billing");
+  const props = billing.options.inject();
+  await props.saveSetting("budgetDaily", 12.34);
+  assert.equal(configStore.getSnapshot().value.budgetDaily, 12.34);
+  assert.equal(live.getSnapshot().budgetDaily, 12.34);
+  assert.equal(configStore.getSnapshot().value.title, DEFAULTS.title, "panel saves an isolated draft");
+  assert.equal(page.hooks.rhineSplash.getSnapshot().fields.title.text, "Unsaved page title");
+  const card = render(billing.Component({}).props.children.type, { ...props, wide: true, t: (key) => key });
+  assert.equal(card.props.className, "rl-bill");
+  assert.equal(card.props.role, "button");
+  assert.equal(card.props["aria-haspopup"], "dialog");
+  assert.equal(card.props["aria-expanded"], false);
+  assert.equal(card.props["aria-label"], "costOpen");
+});
+
+const nodesOf = (node) => Array.isArray(node) ? node.flatMap(nodesOf) : node && typeof node === "object" ? [node, ...nodesOf(node.props?.children)] : [];
+await scenario({ change: (services) => { services.pluginNavigation = { openBundle: noop }; } }, async ({ slots, services, mount, memory, configStore, internals: i }) => {
+  const now = Date.now();
+  services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Alpha", updatedAt: now }, b: { title: "Beta", updatedAt: now }, sub: { origin: "subagent", updatedAt: now } } });
+  i.recordUsage("a", { uncachedInputTokens: 1000000 }, "deepseek-flash", "CNY");
+  i.recordUsage("b", { outputTokens: 1000000 }, "deepseek-v4-pro", "CNY");
+  services.uiWorkspace.selection.emit({ sessionId: "a" });
+  const chosen = [], opened = [];
+  services.uiWorkspace.openSession = (id) => chosen.push(id);
+  services.pluginNavigation.openBundle = (id) => opened.push(id);
+  const entry = slots.find(({ options }) => options.id === "rhine-billing");
+  const instance = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), wide: true, t: (key) => i.en[key] || key });
+  const nodes = () => nodesOf(instance.render());
+  const find = (name) => nodes().find((node) => node.props?.className === name);
+  let prevented = false;
+  find("rl-bill").props.onKeyDown({ key: "Enter", preventDefault: () => { prevented = true; } });
+  assert.ok(prevented);
+  assert.equal(find("rl-bill").props["aria-expanded"], true);
+  assert.equal(find("rl-cost-pop").props.role, "dialog");
+  assert.equal(find("rl-cost-pop").props["aria-label"], "Cost");
+  assert.equal(nodes().filter((node) => node.props?.className === "rl-cost-bar").length, 7);
+  assert.equal(nodes().filter((node) => node.props?.className === "rl-cost-conv").length, 2);
+  assert.equal(nodes().filter((node) => node.props?.className === "rl-cost-budget").length, 2);
+  assert.ok(nodes().some((node) => node.props?.title?.startsWith("Miss 1,000,000")));
+  nodes().find((node) => node.type === "button" && node.props.children === "30 days").props.onClick();
+  assert.equal(memory.get("rhine-splash:cost-range"), "30");
+  assert.equal(nodes().filter((node) => node.props?.className === "rl-cost-bar").length, 30);
+  assert.equal(find("rl-cost-chart").props["data-range"], 30);
+  find("rl-cost-limit").props.onClick();
+  let input = find("rl-cost-input");
+  assert.equal(input.props["aria-label"], "Daily budget");
+  input.props.onChange({ currentTarget: { value: "-1" } });
+  await find("rl-cost-input").props.onBlur();
+  assert.equal(find("rl-cost-input").props["aria-invalid"], true);
+  assert.equal(configStore.getSnapshot().value.budgetDaily, 0);
+  let stopped = false;
+  find("rl-cost-input").props.onKeyDown({ key: "Escape", preventDefault: noop, stopPropagation: () => { stopped = true; } });
+  assert.ok(stopped);
+  assert.equal(find("rl-cost-input"), undefined);
+  assert.ok(find("rl-cost-pop"), "Escape cancels an edit without closing the panel");
+  find("rl-cost-limit").props.onClick();
+  find("rl-cost-input").props.onChange({ currentTarget: { value: "12.345" } });
+  await find("rl-cost-input").props.onBlur();
+  assert.equal(configStore.getSnapshot().value.budgetDaily, 12.35);
+  assert.equal(find("rl-cost-input"), undefined);
+  find("rl-cost-settings").props.onClick();
+  assert.deepEqual(opened, ["dsh-rhine-splash"]);
+  assert.equal(find("rl-cost-pop"), undefined);
+  find("rl-bill").props.onClick();
+  const conversation = find("rl-cost-conv");
+  const title = conversation.props.children[0].props.children;
+  conversation.props.onClick();
+  assert.deepEqual(chosen, [title === "Alpha" ? "a" : "b"]);
+  assert.equal(find("rl-cost-pop"), undefined);
+  find("rl-bill").props.onKeyDown({ key: " ", preventDefault: noop });
+  find("rl-cost-pop").props.onKeyDown({ key: "Escape", preventDefault: noop });
+  assert.equal(find("rl-cost-pop"), undefined);
+});
+
+await scenario({}, ({ slots, mount, internals: { en } }) => {
+  const entry = slots.find(({ options }) => options.id === "rhine-billing");
+  const instance = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), wide: true, t: (key) => en[key] || key });
+  instance.render().props.onClick();
+  const nodes = nodesOf(instance.render());
+  assert.ok(nodes.some((node) => node.props?.className === "rl-cost-empty"));
+  assert.ok(!nodes.some((node) => node.props?.className === "rl-cost-chart"));
+  assert.ok(!nodes.some((node) => node.props?.className === "rl-cost-settings"));
+  assert.equal(nodes.filter((node) => node.props?.className === "rl-cost-budget").length, 2);
+});
+
+await scenario({}, async ({ internals: { balance }, advance }) => {
+  // Let the initial mocked request settle, then check one shared refresh and poll.
+  await Promise.resolve();
+  await Promise.resolve();
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; return { ok: true, json: async () => ({ status: "ready", balances: [{ currency: "USD", total: 12, granted: 2, toppedUp: 10 }] }) }; };
+  await balance.refresh();
+  assert.equal(balance.getSnapshot().value.balances[0].currency, "USD");
+  assert.equal(requests, 1);
+  advance(4000);
+  await Promise.resolve();
+  assert.equal(requests, 1, "a balance response must not cause another debounced refresh");
+  advance(56000);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(requests, 2);
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  await balance.refresh();
+  assert.equal(balance.getSnapshot().status, "failed");
+  assert.equal(balance.getSnapshot().value.balances[0].total, 12, "a failed refresh preserves the last balance");
+});
+
+await scenario({ apply: false, stored: { "rhine-splash:budget-alerts": JSON.stringify({ day: "2026-10-20", daily: [80, 100], ids: { stale: { day: "2026-01-01", levels: [80] }, keep: { day: "2026-10-20", levels: [80] } } }) } }, ({ memory, internals: { budgetThresholds } }) => {
+  const alerts = budgetThresholds({ now: new Date(2026, 9, 21).getTime(), sessionId: "keep", daily: 8, session: 10, budgetDaily: 10, budgetSession: 10 });
+  assert.deepEqual(alerts.map(({ scope, level }) => [scope, level]), [["daily", 80], ["session", 100]]);
+  assert.ok(!Object.hasOwn(JSON.parse(memory.get("rhine-splash:budget-alerts")).ids, "stale"));
+});
+
+console.log("Client tests passed (locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost/day-log/money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");

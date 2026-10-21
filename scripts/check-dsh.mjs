@@ -9,7 +9,7 @@ const CONTRACTS = [
   { feature: "heroBackground", needles: ["data-phase"] },
   { feature: "notify", needles: ["sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", "selection"] },
   { feature: "todo", needles: ["sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", '"sidebar.footer.action"'] },
-  { feature: "billing", needles: ['"sidebar.footer.action"', "binding(", "faceOf", '"tokenUsage"', "directoryFor", "credentials.resolve", "requestRejection"] },
+  { feature: "billing", needles: ['"sidebar.footer.action"', "binding(", "faceOf", '"tokenUsage"', "directoryFor", "pluginNavigation", "credentials.resolve", "requestRejection"] },
   { feature: "effort", needles: ['"conversation.input.right"', "directoryFor", "subagentAddress", "useAnchoredPosition", "useDismissOnOutsidePointer"] },
   { feature: "archives", needles: ['"sidebar.workspaces.session.menu.item"', '"settings.section"', "archivedSessionIds", "unarchiveSession", "sessionPersistence", "requestRejection"] },
   { feature: "command", needles: ["popupSelect", "available(", "SettingsFormModel"] }
