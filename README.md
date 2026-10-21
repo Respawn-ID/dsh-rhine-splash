@@ -29,11 +29,11 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 | 开屏动画 | ![浅色开屏动画](screenshots/splash-light.png) | ![深色开屏动画](screenshots/splash-dark.png) |
 | 主界面 | ![浅色主界面](screenshots/home-light.png) | ![深色主界面](screenshots/home-dark.png) |
 
-开屏动画截图来自本仓库的预览页面。主界面截图来自 DeepSeek Harness 网页版 0.2.1-rc.2 的全新配置（未登录、未配置 API Key），空白页背景为「完整开屏底」。由于没有可用的模型，截图中不显示推理强度滑块。
+开屏动画截图来自本仓库的预览页面。主界面截图来自 DeepSeek Harness 网页版 0.2.1-rc.2 的全新配置（未登录、未配置 API Key），使用默认的莱茵橙强调色和暖白底色，空白页背景为「完整开屏底」，左下角是待办条和计费卡片。由于没有可用的模型，截图中不显示推理强度滑块。
 
 ## 环境要求
 
-- DeepSeek Harness 桌面版或网页版 0.2.1-rc.2。
+- DeepSeek Harness 桌面版（macOS、Windows）或网页版 0.2.1-rc.2。
 - 在网页版中通过命令行安装时，终端里需要能使用 `pnpm`。
 
 ## 安装
@@ -46,11 +46,16 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 本组合包没有依赖，也不运行安装脚本，因此安装时不会要求你确认版本豁免或允许构建脚本。
 
+下文说的「完全退出 Harness」：
+
+- **macOS**：按 <kbd>⌘</kbd> + <kbd>Q</kbd>。
+- **Windows**：关闭窗口只会把 Harness 缩到系统托盘，任务还在后台运行。请在 Harness 的应用菜单中选择「退出」，或在系统托盘中右键 Harness 图标，选择「退出 DeepSeek Harness」。
+
 ### 在插件页安装
 
 1. 在 Harness 侧栏点击 **插件**，然后点击 **添加插件**。
 2. 输入 `<来源>`，点击 **安装**。安装完成后，点击 **立即启用**。
-3. 按 <kbd>⌘</kbd> + <kbd>Q</kbd> 完全退出 Harness，然后重新打开。
+3. 完全退出 Harness，然后重新打开。
 
 ### 让 dsh agent 安装
 
@@ -60,7 +65,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 ### 使用命令行安装
 
-1. 如果终端里还没有 `dsh` 命令，在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…** > **安装**。
+1. 如果终端里还没有 `dsh` 命令，先在 Harness 中安装：macOS 在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…**，Windows 在 Harness 的应用菜单中选择 **管理 dsh 命令…**，然后点击 **安装**。
 2. 完全退出 Harness。Harness 运行时会锁定配置，命令行无法写入。
 3. 运行以下命令。路径中有空格时，请保留引号：
 
@@ -149,7 +154,7 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 - **离开 30 秒后**（`away`，默认）：切到别的应用、最小化或隐藏，离开超过 30 秒再回来时播放。来回快速切换不会触发。
 - **每次切回**（`always`）：窗口每次重新获得焦点都播放。
-- **最小化或隐藏后**（`hidden`）：只有窗口被最小化、按 <kbd>⌘</kbd> + <kbd>H</kbd> 隐藏或切到别的桌面后再回来才播放。
+- **最小化或隐藏后**（`hidden`）：只有窗口被最小化、隐藏（macOS 的「隐藏」，或 Windows 上关闭窗口缩到系统托盘）或切到别的桌面后再回来才播放。
 
 设置页的「预览切回动效」可以直接看效果。系统开启「减弱动态效果」时不播放。不需要时，把「切回动效」设为「关闭」。
 
@@ -163,11 +168,11 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 「通知方式」决定怎么提醒：
 
-- **系统通知**（`notifySystem`）：窗口不在前台时，在 macOS 通知中心弹出通知，内容是对话标题和状态（「运行结束」「等待授权」「等待回答」「计划待审」），不包含对话内容。点击通知会回到 Harness 并打开这个对话。
+- **系统通知**（`notifySystem`）：窗口不在前台时，通过系统通知弹出提醒（macOS 显示在通知中心，Windows 显示在通知区域），内容是对话标题和状态（「运行结束」「等待授权」「等待回答」「计划待审」），不包含对话内容。点击通知会回到 Harness 并打开这个对话。
 - **界面内提示**（`notifyToast`）：在窗口右上角弹出半透明的毛玻璃提示卡片。卡片出现时从左侧色条扩散出两道波纹，状态小方块向外发出方形波纹（等待授权时持续扩散），点击时从点按位置漾开一圈水波。点击即可跳到对应对话，约 8 秒后自动消失（鼠标停留时暂停）。窗口失焦但仍在屏幕上时立即显示；窗口被隐藏或最小化时，提示会等你回来再显示。
 - **提示音**（`notifySound`）：运行结束时两声上扬的短音，等待授权时三声短促提示。
 
-系统通知只在应用失焦或在后台时发送；在 Harness 里时用界面内提示。各项都可以在设置页分别关闭，「预览通知」可以直接看效果。如果桌面版收不到系统通知，请在 macOS「系统设置 → 通知」中允许 DeepSeek Harness 发送通知。网页版首次使用系统通知时，点「预览通知」后浏览器会请求通知权限；如果系统或浏览器拒绝了通知权限，界面内提示和提示音不受影响。
+系统通知只在应用失焦或在后台时发送；在 Harness 里时用界面内提示。各项都可以在设置页分别关闭，「预览通知」可以直接看效果。如果桌面版收不到系统通知，请在系统设置中允许 DeepSeek Harness 发送通知：macOS 在「系统设置 → 通知」中，Windows 在「设置 → 系统 → 通知」中。网页版首次使用系统通知时，点「预览通知」后浏览器会请求通知权限；如果系统或浏览器拒绝了通知权限，界面内提示和提示音不受影响。
 
 ### 待办中心
 
@@ -208,7 +213,7 @@ dsh plugin --profile desktop remove dsh-rhine-splash
 
 Harness 本身只能归档对话，不能删除。安装本插件后，已归档对话的「…」菜单最下方会多出红色的「删除对话」：点一次变成「再点一次确认删除」，4 秒内再点一次才会执行。
 
-- 删除只是把这个对话的记录文件夹移到废纸篓（macOS 系统废纸篓；无法写入时，或在其他系统上，移到 `~/.dsh/trash`），需要时可以移回原位找回。
+- 删除只是把这个对话的记录文件夹移到废纸篓（macOS 移到系统废纸篓，无法写入时改为 `~/.dsh/trash`；Windows 移到 `%USERPROFILE%\.dsh\trash`），需要时可以移回原位找回。
 - 只能删除已归档的对话。本次启动后打开过的对话正在被 Harness 使用，需要重启 Harness 后再删除。
 - 删除后对话会在下次启动 Harness 时从列表中消失。
 
@@ -226,7 +231,7 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 
 ### 编辑配置文件
 
-你也可以直接编辑 `~/.dsh/profiles/desktop/cordis.patch.yml`（网页版为 `~/.dsh/profiles/web/cordis.patch.yml`）。保留文件原有内容，在末尾添加类似下面的配置，保存后重启 Harness：
+你也可以直接编辑 `~/.dsh/profiles/desktop/cordis.patch.yml`（网页版为 `~/.dsh/profiles/web/cordis.patch.yml`；Windows 上 `~` 指 `%USERPROFILE%`，即 `C:\Users\<用户名>`）。保留文件原有内容，在末尾添加类似下面的配置，保存后重启 Harness：
 
 ```yaml
 - id: rhine-splash
@@ -302,7 +307,7 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 
 **安装后没有看到开屏动画**
 
-开屏动画只在 Harness 启动时播放。请确认插件已启用，然后按 <kbd>⌘</kbd> + <kbd>Q</kbd> 完全退出 Harness，再重新打开。只关闭窗口或刷新页面，不会触发开屏动画。
+开屏动画只在 Harness 启动时播放。请确认插件已启用，然后[完全退出 Harness](#安装)，再重新打开。只关闭窗口或刷新页面，不会触发开屏动画；Windows 上关闭窗口只会缩到系统托盘。
 
 **命令行提示 `Open DeepSeek Harness Desktop once to initialize its profile, then fully quit it`**
 
@@ -310,7 +315,9 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 
 **终端里找不到 `dsh` 命令**
 
-在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…** > **安装**。也可以直接使用完整路径：
+在 Harness 中安装 `dsh` 命令：macOS 在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…**，Windows 在 Harness 的应用菜单中选择 **管理 dsh 命令…**，然后点击 **安装**。
+
+在 macOS 上也可以直接使用完整路径：
 
 ```bash
 "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "<来源>"
@@ -398,7 +405,7 @@ Harness 更新后，可以检查插件依赖的接口是否还在：
 npm run check-dsh
 ```
 
-它只读取、不修改本机安装的 Harness（默认是 `/Applications/DeepSeek Harness.app` 中的 `app.asar`，也可以在命令末尾传入其他 `app.asar` 或解包目录的路径），逐项列出每个功能用到的插槽、服务和事件名。有缺失时会列出缺少的名称，并以非零状态退出。
+它只读取、不修改本机安装的 Harness（macOS 默认读取 `/Applications/DeepSeek Harness.app` 中的 `app.asar`；Windows 请在命令末尾传入 Harness 安装目录下 `resources\app.asar` 的路径，也可以传入解包后的目录），逐项列出每个功能用到的插槽、服务和事件名。有缺失时会列出缺少的名称，并以非零状态退出。
 
 ### 图片素材
 
