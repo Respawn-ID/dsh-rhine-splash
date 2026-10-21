@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, trashTarget } from '../lib/index.js';
+import vm from 'node:vm';
+import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, trashTarget } from '../lib/index.js';
 
 assert.deepEqual(staleArchivedIds(['session-b', 'session-a'], new Set(), () => false),
   ['session-b', 'session-a']);
@@ -38,6 +39,44 @@ assert.equal(DEFAULTS.accentDark, '#f0893e');
 assert.equal(DEFAULTS.maxWait, 8000);
 assert.equal(DEFAULTS.exit, 'random');
 assert.equal(DEFAULTS.logo, 'plate');
+assert.equal(DEFAULTS.accent, 'rhine');
+assert.equal(DEFAULTS.accentColor, '#e46f24');
+assert.equal(DEFAULTS.base, 'warm');
+assert.ok(Object.isFrozen(ACCENTS));
+for (const [key, choices] of [['accent', [...Object.keys(ACCENTS), 'custom']], ['base', ['warm', 'neutral', 'official']]]) {
+  for (const value of choices) assert.equal(resolveConfig({ [key]: value })[key], value);
+  assert.equal(resolveConfig({ [key]: ' ' + choices[1] + ' ' })[key], choices[1]);
+  for (const value of [undefined, null, '', 'INVALID', 1, {}, []]) assert.equal(resolveConfig({ [key]: value })[key], DEFAULTS[key]);
+}
+for (const color of ['#abc', '#ABC', '#123456', '#ABCDEF']) assert.equal(resolveConfig({ accentColor: color }).accentColor, color);
+for (const color of [undefined, null, 123, '#12', '#abcd', '#abcde', '#12345678', '#gggggg', 'red', ' #abc ']) {
+  assert.equal(resolveConfig({ accentColor: color }).accentColor, DEFAULTS.accentColor);
+}
+const themeSource = readFileSync(new URL('../lib/theme.css', import.meta.url), 'utf8');
+for (const [accent, [light, dark]] of Object.entries(ACCENTS)) {
+  const config = resolveConfig({ accent, accentDark: '#111111' });
+  assert.equal(config.accentLight, light);
+  assert.equal(config.accentDark, dark);
+  assert.equal(themeSource.match(new RegExp('--rl-accent-' + accent + ':\\s*(#[0-9a-f]+)'))?.[1], light);
+}
+for (const [color, light, dark] of [['#abc', '#aabbcc', '#bbc9d6'], ['#123456', '#123456', '#415d78'], ['#ABCDEF', '#abcdef', '#bcd7f2']]) {
+  const custom = resolveConfig({ accent: 'custom', accentColor: color });
+  assert.equal(custom.accentLight, light);
+  assert.equal(custom.accentDark, dark);
+  assert.equal(resolveConfig({ accent: 'custom', accentColor: color, accentDark: '#13579b' }).accentDark, '#13579b');
+  assert.equal(resolveConfig({ accent: 'custom', accentColor: color, accentDark: 'invalid' }).accentDark, dark);
+}
+const migrated = resolveConfig({ accentLight: '#123456' });
+assert.equal(migrated.accent, 'custom');
+assert.equal(migrated.accentColor, '#123456');
+assert.equal(migrated.accentLight, '#123456');
+assert.equal(migrated.accentDark, '#415d78');
+assert.equal(resolveConfig({ accent: 'ocean', accentLight: '#123456' }).accent, 'ocean');
+assert.equal(resolveConfig({ accentLight: DEFAULTS.accentLight }).accent, 'rhine');
+assert.equal(resolveConfig({ accent: 'rhine', accentLight: '#abc' }).accentColor, '#abc');
+assert.equal(resolveConfig({ accent: 'custom', accentColor: '#123456', accentLight: '#abc' }).accentColor, '#123456');
+assert.equal(resolveConfig({ accent: 'custom', accentDark: '#ABC' }).accentDark, '#ABC');
+
 for (const logo of ['plate', 'cell']) {
   assert.equal(resolveConfig({ logo }).logo, logo);
 }
@@ -99,7 +138,9 @@ assert.deepEqual(resolved, {
   title: 'CUSTOM HARNESS',
   subtitle: 'Research division',
   code: 'RL-TEST',
-  accentLight: '#ABC',
+  accent: 'custom',
+  accentColor: '#ABC',
+  accentLight: '#aabbcc',
   accentDark: '#12345678',
   theme: 'dark',
   skippable: false,
@@ -197,6 +238,23 @@ assert.equal(rows[1].placement, 'body');
 assert.ok(rows[1].text.startsWith('globalThis.__RHINE_BRAND__='));
 assert.ok(rows[1].text.includes(';globalThis.__RHINE_SPLASH__='));
 assert.ok(rows[1].text.endsWith(';\n' + fakeAssets.js));
+const bootstrapAt = rows[1].text.indexOf('(function(c)');
+assert.ok(bootstrapAt > rows[1].text.indexOf(';globalThis.__RHINE_SPLASH__='));
+assert.ok(bootstrapAt < rows[1].text.indexOf(fakeAssets.js));
+for (const snippet of ['toggleAttribute("data-rl-ui"', 'dataset.rlAccent=c.accent', 'dataset.rlBase=c.base', 'setProperty("--rl-accent-custom"', 'removeProperty("--rl-accent-custom"']) assert.ok(rows[1].text.includes(snippet));
+for (const accent of ['custom', 'ocean']) {
+  const values = new Map();
+  const root = { dataset: {}, toggleAttribute: (key, on) => on ? values.set(key, '') : values.delete(key),
+    style: { setProperty: (key, value) => values.set(key, value), removeProperty: (key) => values.delete(key) } };
+  values.set('--rl-accent-custom', '#fff');
+  const config = resolveConfig({ uiTheme: false, accent, accentColor: '#123456', base: 'neutral' });
+  const sandbox = { document: { documentElement: root } };
+  vm.runInNewContext(buildInjections(config, fakeAssets)[1].text, sandbox);
+  assert.equal(values.has('data-rl-ui'), false);
+  assert.equal(root.dataset.rlAccent, accent);
+  assert.equal(root.dataset.rlBase, 'neutral');
+  assert.equal(values.get('--rl-accent-custom'), accent === 'custom' ? '#123456' : undefined);
+}
 assert.ok(rows[1].text.includes('\\u003c/script>'));
 for (const script of [rows[1].text, buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text]) {
   assert.ok(!script.includes('</script>'));
@@ -214,7 +272,7 @@ function globalsOf(script) {
     config: JSON.parse(script.slice(configStart, script.indexOf(';\n', configStart))),
   };
 }
-assert.deepEqual(globalsOf(rows[1].text), { brand: { mark: '', hero: '', name: '' }, config: unsafeConfig });
+assert.deepEqual(globalsOf(rows[1].text), { brand: { mark: '', hero: '', name: '', marks: { plate: '', cell: '' }, heroes: { plate: '', cell: '' } }, config: unsafeConfig });
 assert.deepEqual(globalsOf(buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text).brand, unsafeBrand);
 assert.deepEqual(buildInjections(unsafeConfig, fakeAssets), rows);
 assert.deepEqual(buildInjections(unsafeConfig, { ...fakeAssets, images: '' }), rows);
@@ -226,7 +284,7 @@ const themedAssets = { ...fakeAssets, themeCss, images: allImageStyle };
 assert.deepEqual(buildInjections(unsafeConfig, themedAssets), [
   { kind: 'style', text: '/* optional theme */<\\/style>' }, { kind: 'style', text: allImageStyle }, ...rows,
 ]);
-assert.deepEqual(buildInjections({ ...unsafeConfig, uiTheme: false }, themedAssets).map((row) => row.text), [allImageStyle, rows[0].text,
+assert.deepEqual(buildInjections({ ...unsafeConfig, uiTheme: false }, themedAssets).map((row) => row.text), ['/* optional theme */<\\/style>', allImageStyle, rows[0].text,
   buildInjections({ ...unsafeConfig, uiTheme: false }, fakeAssets)[1].text]);
 assert.equal(buildInjections(DEFAULTS, { ...fakeAssets, themeCss: '' }).length, 2);
 const disabledRows = buildInjections(resolveConfig({ enabled: false }), fakeAssets);
@@ -320,7 +378,7 @@ try {
   assert.match(partial.messages[0], /bars-dark\.jpg, specimen\.jpg/);
   assert.ok(!partial.messages[0].includes('bars-light.jpg'));
   assert.match(partial.messages[1], /theme\.css.*mark-plate\.svg.*mark-cell\.svg.*name\.html/);
-  assert.deepEqual(partial.table, buildInjections(DEFAULTS, { ...fakeAssets, images: lightStyle }));
+  assert.deepEqual(partial.table, buildInjections(DEFAULTS, { ...fakeAssets, images: lightStyle, brand: { mark: '', hero: '', name: '', marks: { plate: '', cell: '' }, heroes: { plate: '', cell: '' } } }));
   // Optional sources are captured at apply, then reused on every emission.
   mkdirSync(join(lib, 'brand'));
   writeFileSync(join(lib, 'theme.css'), themeCss);
@@ -330,33 +388,38 @@ try {
     ['mark-cell.svg', cellBrand.mark], ['hero-cell.svg', cellBrand.hero],
     ['name.html', unsafeBrand.name],
   ]) writeFileSync(join(lib, 'brand', filename), text);
+  const maps = { marks: { plate: unsafeBrand.mark, cell: cellBrand.mark }, heroes: { plate: unsafeBrand.hero, cell: cellBrand.hero } };
+  const plateFull = { ...unsafeBrand, ...maps }, cellFull = { ...cellBrand, ...maps };
   const withExtras = invoke({ enabled: false });
   assert.equal(withExtras.messages.length, 1);
-  assert.deepEqual(withExtras.table, buildInjections(resolveConfig({ enabled: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
-  assert.deepEqual(invoke({ uiTheme: false }).table, buildInjections(resolveConfig({ uiTheme: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: unsafeBrand }));
+  assert.deepEqual(withExtras.table, buildInjections(resolveConfig({ enabled: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: plateFull }));
+  assert.deepEqual(invoke({ uiTheme: false }).table, buildInjections(resolveConfig({ uiTheme: false }), { ...fakeAssets, images: lightStyle, themeCss, brand: plateFull }));
   let liveLogo = 'plate';
   const switchable = invoke({ logo: { get: () => liveLogo } });
-  assert.deepEqual(globalsOf(switchable.table.at(-1).text).brand, unsafeBrand);
+  assert.deepEqual(globalsOf(switchable.table.at(-1).text).brand, plateFull);
   liveLogo = ' cell ';
   const cellTable = [];
   switchable.handlers[0](cellTable);
   assert.equal(globalsOf(cellTable.at(-1).text).config.logo, 'cell');
-  assert.deepEqual(globalsOf(cellTable.at(-1).text).brand, cellBrand);
+  assert.deepEqual(globalsOf(cellTable.at(-1).text).brand, cellFull);
   rmSync(join(lib, 'brand', 'hero-cell.svg'));
   const cachedTable = [];
   switchable.handlers[0](cachedTable);
-  assert.deepEqual(globalsOf(cachedTable.at(-1).text).brand, cellBrand);
+  assert.deepEqual(globalsOf(cachedTable.at(-1).text).brand, cellFull);
   const fallback = invoke({ logo: 'cell' });
   // Hero files are optional per scheme: a missing one is quiet and falls back to the mark.
   assert.equal(fallback.messages.length, 1);
   assert.ok(!fallback.messages.some((message) => /hero-cell\.svg/.test(message)));
-  assert.deepEqual(globalsOf(fallback.table.at(-1).text).brand, { ...cellBrand, hero: cellBrand.mark });
+  assert.deepEqual(globalsOf(fallback.table.at(-1).text).brand, { ...cellFull, hero: cellBrand.mark, heroes: { plate: unsafeBrand.hero, cell: cellBrand.mark } });
+  rmSync(join(lib, 'brand', 'hero-plate.svg'));
+  assert.deepEqual(globalsOf(invoke().table.at(-1).text).brand.heroes, { plate: unsafeBrand.mark, cell: cellBrand.mark });
+  writeFileSync(join(lib, 'brand', 'hero-plate.svg'), unsafeBrand.hero);
   writeFileSync(join(lib, 'brand', 'hero-cell.svg'), cellBrand.hero);
   rmSync(images, { recursive: true });
   const missing = invoke();
   assert.equal(missing.messages.length, 1);
   assert.match(missing.messages[0], /bars-light\.jpg, bars-dark\.jpg, specimen\.jpg/);
-  assert.deepEqual(missing.table, buildInjections(DEFAULTS, { ...fakeAssets, themeCss, brand: unsafeBrand }));
+  assert.deepEqual(missing.table, buildInjections(DEFAULTS, { ...fakeAssets, themeCss, brand: plateFull }));
   for (const [file, text] of [['splash.css', fakeAssets.css], ['splash.js', fakeAssets.js]]) {
     rmSync(join(lib, file));
     const disabled = invoke();
@@ -370,4 +433,4 @@ try {
   rmSync(fixture, { recursive: true, force: true });
 }
 
-console.log('Host tests passed (live config/cells, logo schemes/hero fallback, boolean validation, safe globals, theme/replay injection order, settings opt-out, optional/missing assets).');
+console.log('Host tests passed (accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');

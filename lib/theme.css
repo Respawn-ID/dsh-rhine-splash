@@ -3,23 +3,98 @@
  *
  * Overrides design tokens only — never component class names — so it follows
  * the app's own light/dark switch and survives layout changes between
- * releases. Selectors use `html body` to outrank the theme plugin's `:root`
- * and `body` declarations whatever the load order. Alias tokens declared on
- * body resolve against these replaced palette steps, so one palette swap
- * re-colours the whole interface.
+ * releases. Selectors use `html[data-rl-ui] body` to outrank the theme
+ * plugin's `:root` and `body` declarations whatever the load order. Alias
+ * tokens declared on body resolve against these replaced palette steps, so
+ * one palette swap re-colours the whole interface.
  *
- *   neutral-bluish-*  cool greys   → warm paper / charcoal greys
- *   deepseek-*        brand blue   → Rhine orange
+ * Everything is keyed to attributes on <html>, which the plugin sets before
+ * first paint and updates live when the settings change:
+ *
+ *   data-rl-ui          the theme is on (absent: Harness's own look)
+ *   data-rl-accent      rhine | life | ocean | crimson | custom
+ *   data-rl-base        warm | neutral | official
+ *   --rl-accent-custom  the custom accent colour (inline style)
+ *
+ *   neutral-bluish-*  cool greys    → warm paper / plain grey / untouched
+ *   deepseek-*        brand blue    → the chosen accent scale
  *   radius + shape    soft squircle → small chamfered corners
  *
  * Elements that must stay round (switches, dots, pills) opt out of the
  * global corner shape in the app's own CSS, so they are unaffected.
  */
 
-html body,
-html body[data-ds-dark-theme] {
-  /* Warm neutral scale. Light mode reads the low steps (paper), dark mode
-     the high steps (charcoal); both keep the original contrast ladder. */
+/* Accent presets. Declared unconditionally so the settings page can paint
+   its swatches even while the theme is off; lib/index.js keeps the same
+   values for the splash (the host tests check they match). */
+html {
+  --rl-accent-rhine: #e46f24;
+  --rl-accent-life: #5f9420;
+  --rl-accent-ocean: #2f6bd8;
+  --rl-accent-crimson: #d63a4f;
+}
+
+html[data-rl-ui] body,
+html[data-rl-ui] body[data-ds-dark-theme] {
+  /* Machine-style geometry: tighter radii cut as chamfers. */
+  --dsw-radius-xs: 2px;
+  --dsw-radius-sm: 4px;
+  --dsw-radius-md: 6px;
+  --dsw-radius-lg: 8px;
+  --dsw-radius-xl: 10px;
+  --dsw-radius-panel: 12px;
+  --dsw-corner-shape: bevel;
+
+  --dsw-alias-bg-document-selection: color-mix(in srgb, var(--dsw-static-deepseek-500) 30%, transparent);
+}
+
+/* Accent scale, derived from one colour. Light steps blend toward white and
+   deep steps toward warm charcoal in OKLab, so every preset keeps the same
+   ladder of contrast as the hand-tuned Rhine orange below. */
+html[data-rl-ui] {
+  --rl-accent-now: var(--rl-accent-custom, var(--rl-accent-rhine));
+}
+html[data-rl-ui][data-rl-accent=life] { --rl-accent-now: var(--rl-accent-life); }
+html[data-rl-ui][data-rl-accent=ocean] { --rl-accent-now: var(--rl-accent-ocean); }
+html[data-rl-ui][data-rl-accent=crimson] { --rl-accent-now: var(--rl-accent-crimson); }
+
+html[data-rl-ui] body,
+html[data-rl-ui] body[data-ds-dark-theme] {
+  --dsw-static-deepseek-50: color-mix(in oklab, var(--rl-accent-now) 8%, #fff);
+  --dsw-static-deepseek-100: color-mix(in oklab, var(--rl-accent-now) 17%, #fff);
+  --dsw-static-deepseek-200: color-mix(in oklab, var(--rl-accent-now) 34%, #fff);
+  --dsw-static-deepseek-300: color-mix(in oklab, var(--rl-accent-now) 54%, #fff);
+  --dsw-static-deepseek-400: color-mix(in oklab, var(--rl-accent-now) 80%, #fff);
+  --dsw-static-deepseek-450: color-mix(in oklab, var(--rl-accent-now) 90%, #fff);
+  --dsw-static-deepseek-500: var(--rl-accent-now);
+  --dsw-static-deepseek-600: color-mix(in oklab, var(--rl-accent-now) 82%, #000);
+  --dsw-static-deepseek-700-delete: color-mix(in oklab, var(--rl-accent-now) 66%, #000);
+  --dsw-static-deepseek-800: color-mix(in oklab, var(--rl-accent-now) 40%, #1d1c1a);
+  --dsw-static-deepseek-900: color-mix(in oklab, var(--rl-accent-now) 24%, #1d1c1a);
+}
+
+/* Rhine orange keeps its hand-tuned scale: links, info buttons, the user's
+   message bubble, the active sidebar item. */
+html[data-rl-ui]:not([data-rl-accent]) body,
+html[data-rl-ui][data-rl-accent=rhine] body {
+  --dsw-static-deepseek-50: #fdf2ea;
+  --dsw-static-deepseek-100: #fbe4d3;
+  --dsw-static-deepseek-200: #f6cba9;
+  --dsw-static-deepseek-300: #f0ad7c;
+  --dsw-static-deepseek-400: #f0893e;
+  --dsw-static-deepseek-450: #ea7b30;
+  --dsw-static-deepseek-500: #e46f24;
+  --dsw-static-deepseek-600: #bd5a19;
+  --dsw-static-deepseek-700-delete: #9a4714;
+  --dsw-static-deepseek-800: #5b3622;
+  --dsw-static-deepseek-900: #3b2619;
+}
+
+/* Base greys. Light mode reads the low steps (paper), dark mode the high
+   steps (charcoal); every scale keeps the original contrast ladder.
+   `official` leaves Harness's cool bluish greys untouched. */
+html[data-rl-ui]:not([data-rl-base]) body,
+html[data-rl-ui][data-rl-base=warm] body {
   --dsw-static-neutral-bluish-00: #fbfaf7;
   --dsw-static-neutral-bluish-50: #f6f5f1;
   --dsw-static-neutral-bluish-60: #f2f1ec;
@@ -39,41 +114,38 @@ html body[data-ds-dark-theme] {
   --dsw-static-neutral-bluish-900: #1d1c1a;
   --dsw-static-neutral-bluish-950: #171715;
   --dsw-static-neutral-bluish-1000: #12110f;
+}
 
-  /* Rhine orange in place of the DeepSeek blue brand scale: links, info
-     buttons, the user's message bubble, the active sidebar item. */
-  --dsw-static-deepseek-50: #fdf2ea;
-  --dsw-static-deepseek-100: #fbe4d3;
-  --dsw-static-deepseek-200: #f6cba9;
-  --dsw-static-deepseek-300: #f0ad7c;
-  --dsw-static-deepseek-400: #f0893e;
-  --dsw-static-deepseek-450: #ea7b30;
-  --dsw-static-deepseek-500: #e46f24;
-  --dsw-static-deepseek-600: #bd5a19;
-  --dsw-static-deepseek-700-delete: #9a4714;
-  --dsw-static-deepseek-800: #5b3622;
-  --dsw-static-deepseek-900: #3b2619;
-
-  /* Machine-style geometry: tighter radii cut as chamfers. */
-  --dsw-radius-xs: 2px;
-  --dsw-radius-sm: 4px;
-  --dsw-radius-md: 6px;
-  --dsw-radius-lg: 8px;
-  --dsw-radius-xl: 10px;
-  --dsw-radius-panel: 12px;
-  --dsw-corner-shape: bevel;
-
-  --dsw-alias-bg-document-selection: color-mix(in srgb, var(--dsw-static-deepseek-500) 30%, transparent);
+html[data-rl-ui][data-rl-base=neutral] body {
+  --dsw-static-neutral-bluish-00: #fafafa;
+  --dsw-static-neutral-bluish-50: #f5f5f5;
+  --dsw-static-neutral-bluish-60: #f1f1f1;
+  --dsw-static-neutral-bluish-75: #ececec;
+  --dsw-static-neutral-bluish-100: #e7e7e7;
+  --dsw-static-neutral-bluish-150: #e1e1e1;
+  --dsw-static-neutral-bluish-200: #d8d8d8;
+  --dsw-static-neutral-bluish-300: #c9c9c9;
+  --dsw-static-neutral-bluish-400: #a9a9a9;
+  --dsw-static-neutral-bluish-500: #919191;
+  --dsw-static-neutral-bluish-600: #7a7a7a;
+  --dsw-static-neutral-bluish-700: #5d5d5d;
+  --dsw-static-neutral-bluish-750: #454545;
+  --dsw-static-neutral-bluish-800: #373737;
+  --dsw-static-neutral-bluish-850: #2c2c2c;
+  --dsw-static-neutral-bluish-875: #252525;
+  --dsw-static-neutral-bluish-900: #1c1c1c;
+  --dsw-static-neutral-bluish-950: #171717;
+  --dsw-static-neutral-bluish-1000: #111111;
 }
 
 /* The "deep diving" (thinking) label mixed the brand with navy; keep it in
-   the warm family instead of turning brown. */
-html body {
+   the accent's own family instead of turning muddy. */
+html[data-rl-ui] body {
   --dsw-alias-label-deep-diving: color-mix(in srgb, var(--dsw-static-deepseek-500) 80%, var(--dsw-static-neutral-bluish-1000));
   --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--dsw-static-deepseek-500) 32%, var(--dsw-static-neutral-bluish-00));
 }
 
-html body[data-ds-dark-theme] {
+html[data-rl-ui] body[data-ds-dark-theme] {
   --dsw-alias-label-deep-diving: color-mix(in srgb, var(--dsw-static-deepseek-400) 72%, var(--dsw-static-neutral-bluish-400));
   --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--dsw-static-deepseek-300) 60%, var(--dsw-static-deepseek-400));
 }
