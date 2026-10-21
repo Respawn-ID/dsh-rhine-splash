@@ -304,6 +304,10 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 
 通常是因为网络无法访问 GitHub。请从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载发布包，改用文件路径安装。
 
+**Harness 更新后，某个附加功能不见了**
+
+Harness 还在预览阶段，插件依赖的界面接口可能随更新改变。插件在启动每项功能前都会检查所需的接口；接口缺失、运行出错或相关服务一直没有加载时，只停用这一项功能，其他功能和 Harness 自身的界面不受影响。被停用的功能和原因会列在设置页最上方的「兼容性」中，更新插件后通常就能恢复。
+
 **安装后 Harness 无法正常启动**
 
 Harness 检测到启动异常时，会自动备份配置并停用第三方组合包。你可以在插件页面卸载本插件，然后重新启动 Harness。
@@ -337,7 +341,7 @@ Harness 检测到启动异常时，会自动备份配置并停用第三方组合
 ├── locale/               # 插件页显示的名称和简介
 ├── preview/              # 本地预览页面
 ├── screenshots/          # README 中的截图
-└── scripts/              # 测试和素材生成脚本
+└── scripts/              # 测试、接口检查和素材生成脚本
 ```
 
 ### 本地预览
@@ -356,12 +360,25 @@ npm run preview
 
 ### 测试
 
-测试需要 Node.js：
+测试需要 Node.js 24（与 Harness 自带的版本相同），不需要安装依赖：
 
 ```bash
 npm test
+```
+
+```bash
 node --check lib/splash.js
 ```
+
+`npm test` 依次运行服务端测试 `scripts/test-host.mjs` 和浏览器端测试 `scripts/test-client.mjs`。浏览器端测试在 Node 中用模拟的 Harness 服务加载 `lib/client.js`，检查设置项、默认值和中英文文案是否一一对应，检查待办分组等纯函数，并分别模拟服务齐全、服务缺失、接口变化和功能关闭时各功能的注册与停用情况。每次推送到 `main` 或提交 PR 时，GitHub Actions 会自动运行这些测试和语法检查。
+
+Harness 更新后，可以检查插件依赖的接口是否还在：
+
+```bash
+npm run check-dsh
+```
+
+它只读取、不修改本机安装的 Harness（默认是 `/Applications/DeepSeek Harness.app` 中的 `app.asar`，也可以在命令末尾传入其他 `app.asar` 或解包目录的路径），逐项列出每个功能用到的插槽、服务和事件名。有缺失时会列出缺少的名称，并以非零状态退出。
 
 ### 图片素材
 
