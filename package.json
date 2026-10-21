@@ -1,7 +1,7 @@
 {
   "name": "dsh-rhine-splash",
   "description": "Rhine Lab inspired theme for DeepSeek Harness: boot splash, interface theme, brand marks and extras",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "license": "MIT",
   "author": "ArtemisFowl (https://github.com/Respawn-ID)",
