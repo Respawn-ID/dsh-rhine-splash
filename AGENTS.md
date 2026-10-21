@@ -66,7 +66,7 @@ Prefer the UI: the config page (sidebar **插件** → this plugin → **配置*
 | `notifySystem`, `notifyToast`, `notifySound` | `true` | booleans — Rhine notices when a run ends or waits for the user: system notification (only while the window is in the background), in-app card, chime |
 | `title`, `subtitle`, `code` | `DEEPSEEK HARNESS`, `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION`, `RL-DSH/0.2` | strings, ≤ 80 chars |
 | `accentLight`, `accentDark` | `#e46f24`, `#f0893e` | quoted `#` hex, 3–8 digits |
-| `theme` | `auto` | `auto` \| `light` \| `dark` |
+| `theme` | `auto` | `auto` \| `light` \| `dark` — splash colors only; the interface follows Harness's own Settings → General → Appearance (`ui-theme` `preference`), which this plugin never changes |
 | `exit` | `random` | `random` (never repeats the last one) \| `doors` \| `decode` \| `glitch` \| `iris` |
 | `duration` | `4500` | ms, 0–15000; the timeline scales with it |
 | `maxWait` | `8000` | ms, ≥ `duration`, ≤ 20000 |
