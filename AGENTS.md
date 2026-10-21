@@ -22,7 +22,7 @@ A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in 
    - Present and enabled → already installed. Tell the user and stop.
    - Present but disabled → call `{ "action": "set_bundle", "target": "dsh-rhine-splash", "enabled": true }`, then go to step 3.
 2. Call `{ "action": "install_bundle", "target": "<source>" }`, where `<source>` is the absolute repository path when you are inside a clone, and otherwise `github:Respawn-ID/dsh-rhine-splash`. Pass paths exactly, spaces included, without quotes. The bundle is enabled by default. If GitHub is unreachable, ask the user to download the release `.tgz` and install from its path.
-3. Tell the user to fully quit DeepSeek Harness (⌘Q) and reopen it to see the splash.
+3. Tell the user to fully quit DeepSeek Harness and reopen it to see the splash. On macOS that is ⌘Q; on Windows closing the window only hides it to the system tray, so quit from the app menu (退出) or the tray icon's menu (退出 DeepSeek Harness).
 
 Each call asks the user for approval; that is expected. If `plugin_manager` is not available in this session, do not edit profile files by hand. Tell the user to either switch the session to the **Creator** preset or install from the sidebar: **插件 → 添加插件**, paste the repository path, then **立即启用** and restart.
 
@@ -34,9 +34,9 @@ Run this only if the user asks for a terminal install. The desktop app must be f
 dsh plugin --profile desktop add "<absolute repository path>"
 ```
 
-- If `dsh` is not on PATH, use `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"`, or ask the user to run the menu item **DeepSeek Harness → 管理 dsh 命令… → 安装**.
+- If `dsh` is not on PATH, on macOS use `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"`; on either platform ask the user to install it from the app (macOS menu bar or the Windows app menu) **管理 dsh 命令… → 安装**.
 - The error `Open DeepSeek Harness Desktop once to initialize its profile, then fully quit it` means the app has never run, or it is still running.
-- A successful install adds `dsh-rhine-splash` to `dsh.profile.bundles` in `~/.dsh/profiles/desktop/package.json`. That file is the read-only way to verify the install.
+- A successful install adds `dsh-rhine-splash` to `dsh.profile.bundles` in `~/.dsh/profiles/desktop/package.json` (`~` is `%USERPROFILE%` on Windows). That file is the read-only way to verify the install.
 - Web app (`dsh web`): stop it, then run `dsh plugin --profile web add "<source>"` and start `dsh web` again. dsh calls the `pnpm` on PATH; if it is missing, tell the user rather than installing it. Paths and verification are the same with `web` in place of `desktop`.
 
 ## Configure
@@ -83,7 +83,7 @@ Use `plugin_manager` `{ "action": "remove_bundle", "target": "dsh-rhine-splash" 
 
 ## Never
 
-- Modify anything inside `/Applications/DeepSeek Harness.app` (signed, integrity-checked).
+- Modify anything inside the installed app (`/Applications/DeepSeek Harness.app` on macOS, the install directory on Windows; signed, integrity-checked).
 - Hand-edit `~/.dsh/profiles/desktop/package.json` or `pnpm-workspace.yaml`.
 - Grant version exemptions, or pass `approvedBuilds`.
 - Run `npm run assets` unless asked. It takes about 30 s, uses about 1 GB of memory, and rewrites `assets/`.
