@@ -8,8 +8,9 @@ const CONTRACTS = [
   { feature: "settings", needles: ['"plugins.row.config"', "whileServed", "SettingsFormModel", "settingsNumberField", "settingsTextField"] },
   { feature: "heroBackground", needles: ["data-phase"] },
   { feature: "notify", needles: ["sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", "selection"] },
-  { feature: "todo", needles: ["sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", '"sidebar.footer.action"'] },
+  { feature: "todo", needles: ['"sidebar.session.row.hover"', "sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", '"sidebar.footer.action"'] },
   { feature: "billing", needles: ['"sidebar.footer.action"', "binding(", "faceOf", '"tokenUsage"', "directoryFor", "pluginNavigation", "credentials.resolve", "requestRejection"] },
+  { feature: "cost", needles: ["selectPanel", "panelInfo", "activePanelId", '"main"'] },
   { feature: "effort", needles: ['"conversation.input.right"', "directoryFor", "subagentAddress", "useAnchoredPosition", "useDismissOnOutsidePointer"] },
   { feature: "archives", needles: ['"sidebar.workspaces.session.menu.item"', '"settings.section"', '"shell.overlay"', "archivedSessionIds", "unarchiveSession", "unpinSession", "detachSession", "sessionPersistence", "requestRejection", "api-session/removed", "missingSessionPaths", "invalidSessionPaths", "coldLogMemo", "sessionProjectionCache", "requireTable", "searchSessions"] },
   { feature: "command", needles: ["popupSelect", "available(", "SettingsFormModel"] }
