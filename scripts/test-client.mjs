@@ -997,7 +997,7 @@ for (const path of ["layout", "layout.selectPanel", "layout.panelInfo.getSnapsho
   assert.equal(card.props["aria-current"], undefined);
 });
 
-// costOpen "popup": the card opens the small panel as in 0.2.4; its chart opens the cost page.
+// costOpen "popup": the card opens the small panel; its chart and "Full page" open the cost page.
 {
   const today = new Date();
   const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -1028,8 +1028,7 @@ for (const path of ["layout", "layout.selectPanel", "layout.panelInfo.getSnapsho
     assert.equal(view.render().props.className, "rl-bill", "opening the page closes the panel");
     view.render().props.onClick();
     nodes = nodesOf(view.render().props.children[1]);
-    assert.deepEqual(nodes.filter((node) => node.type === "button" && /rl-cost-settings/.test(node.props.className)).length, 0, "no extra footer button (no navigation in this harness)");
-    nodes.find((node) => node.props?.className === "rl-cost-chart").props.onClick();
+    nodes.find((node) => node.props?.children === i.en.costMore).props.onClick();
     assert.deepEqual(selected, ["rhine-cost", "rhine-cost"]);
   });
 }
