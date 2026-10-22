@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cost Preview</title>
+  <title>Cost Page Preview</title>
   <style>
-    /* Stand-ins for the app's tokens, so the cost panel styles from
-       lib/client.js render as in the app. The markup mirrors BillingWidget.
-       URL: ?range=30  ?empty  ?editing  ?peak  ?closed  ?at=<ms> freezes
-       every animation at that time  ?shot hides the controls  #dark */
+    /* Stand-ins for the app's tokens. The page itself is the real CostPage
+       from lib/client.js, rendered with React and 62 days of sample data.
+       URL: ?range=1|7|30|62  ?empty  ?nohours  ?nokey  ?nobudget  ?table
+       ?side=0 hides the sidebar  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
       --dsw-radius-xs: 2px; --dsw-radius-sm: 4px; --dsw-radius-md: 6px;
@@ -33,142 +33,111 @@
     .side { flex: none; width: 260px; display: flex; flex-direction: column; background: var(--side); border-right: .5px solid var(--dsw-alias-border-l2); }
     .side ul { flex: 1; margin: 0; padding: 14px 8px; list-style: none; }
     .side li { padding: 6px 8px; color: var(--dsw-alias-label-secondary); white-space: nowrap; overflow: hidden; }
-    .foot { display: flex; width: 100%; }
-    .settings { height: 36px; border-top: .5px solid var(--dsw-alias-border-l2); }
-    .main { position: relative; flex: 1; background: url(../assets/bars-light.jpg) right center / cover; }
-    body[data-ds-dark-theme] .main { background-image: url(../assets/bars-dark.jpg); }
-    .main p { position: absolute; left: 48px; top: 120px; width: 460px; margin: 0; font-size: 15px; line-height: 1.7; color: var(--dsw-alias-label-secondary); }
-    .ctl { position: fixed; right: 16px; top: 16px; z-index: 2000; display: flex; gap: 6px; }
-    .ctl a { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; color: inherit; text-decoration: none; }
+    .side .card { margin: 8px; padding: 8px 10px; border: .5px solid var(--dsw-alias-border-l3); border-radius: 6px; background: var(--dsw-alias-interactive-bg-hover); font: 600 9px/14px ui-monospace, monospace; letter-spacing: .16em; color: var(--dsw-alias-label-tertiary); }
+    .main { flex: 1; min-width: 0; height: 100vh; }
+    .ctl { position: fixed; right: 16px; bottom: 16px; z-index: 2000; display: flex; gap: 6px; }
+    .ctl a { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-base); color: inherit; text-decoration: none; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 </head>
 <body>
   <div class="app">
-    <aside class="side">
+    <aside class="side" id="side">
       <ul><li>重构计费模块</li><li>整理周报素材</li><li>翻译 README</li><li>数据清洗脚本</li></ul>
-      <div class="foot" id="foot"></div>
-      <div class="settings"></div>
+      <div class="card">RL · BILLING</div>
     </aside>
-    <main class="main"><p>莱茵生命 · 研究档案 RL-DSH/0.2 · 终端已就绪。这段文字和板条阵列只是为了让费用面板背后有内容，便于检查毛玻璃的透明与模糊效果。DEEPSEEK HARNESS INTERNAL TERMINAL</p></main>
+    <main class="main" id="main"></main>
   </div>
   <div class="ctl" id="ctl"></div>
   <script>
     const params = new URLSearchParams(location.search)
-    const range = params.get('range') === '30' ? 30 : 7
-    const empty = params.has('empty')
-    const peak = params.has('peak')
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
-    const money = (v) => '¥' + v.toFixed(v < 0.01 ? 4 : v < 1 ? 3 : 2)
-    // Sample spending, deterministic so screenshots stay stable.
-    const days = Array.from({ length: range }, (_, i) => empty ? 0 : Math.max(0, Math.round((Math.sin(i * 1.7) * 0.5 + 0.6 + (i % 5) * 0.12) * 100) / 100 * (i === range - 1 ? 1.4 : 1)))
-    const today = days[days.length - 1], total = days.reduce((a, b) => a + b, 0), max = Math.max(...days)
-    const el = (tag, attrs = {}, children = []) => {
-      const node = document.createElement(tag)
-      for (const [key, value] of Object.entries(attrs)) {
-        if (value === undefined) continue
-        if (key === 'text') node.textContent = value
-        else if (key === 'style') for (const [p, v] of Object.entries(value)) node.style.setProperty(p, v)
-        else node.setAttribute(key, value)
+    if (params.get('side') === '0') document.getElementById('side').remove()
+
+    // Deterministic sample data: 62 days, three workspaces, one deleted conversation.
+    let seed = 7
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const pad = (n) => String(n).padStart(2, '0')
+    const key = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const rates = { 'deepseek-v4-flash': { hit: 0.04, miss: 2, out: 8 }, 'deepseek-v4-pro': { hit: 0.3, miss: 9, out: 27 }, 'deepseek-v3.2': { hit: 0.2, miss: 2, out: 3 } }
+    const convs = [
+      ['s01', '重构计费模块的预算提醒逻辑', 'Deepseek Theme'], ['s02', '推理强度滑块点阵特效', 'Deepseek Theme'], ['s03', '整理周报素材', 'default-workspace'],
+      ['s04', '翻译 README 到英文', 'Deepseek Theme'], ['s05', '数据清洗脚本', 'data-lab'], ['s06', '开屏退场动画调试', 'Deepseek Theme'],
+      ['s07', '订单表去重与异常值', 'data-lab'], ['s08', '会议纪要汇总', 'default-workspace'], ['s09', '待办中心交互走查', 'Deepseek Theme'],
+      ['s10', 'SQL 慢查询分析', 'data-lab'], ['s11', '归档对话删除逻辑', 'Deepseek Theme'], ['gone', null, null]
+    ]
+    const days = {}, ledgers = {}
+    const now = new Date()
+    if (!params.has('empty')) for (let back = 61; back >= 0; back--) {
+      const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - back)
+      const weekend = d.getDay() === 0 || d.getDay() === 6
+      if (rand() < (weekend ? 0.45 : 0.08)) continue
+      const scale = (weekend ? 0.4 : 1) * (0.5 + rand()) * (back < 20 ? 1.4 : 1)
+      const row = { models: {}, sessions: {} }
+      const withHours = !params.has('nohours') && back < 18
+      if (withHours) { row.hours = Array(24).fill(0); row.peak = 0; row.offPeak = 0 }
+      for (const model of ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v3.2']) {
+        if (model === 'deepseek-v4-pro' && rand() < 0.35) continue
+        if (model === 'deepseek-v3.2' && (back > 40 || rand() < 0.75)) continue
+        const k = model === 'deepseek-v4-flash' ? 1 : model === 'deepseek-v4-pro' ? 0.25 : 0.4
+        const t = { miss: 4e5 * scale * k * (0.6 + rand()), hit: 3.2e6 * scale * k * (0.6 + rand()), out: 1.1e5 * scale * k * (0.6 + rand()) }
+        const r = rates[model], factor = 0.55 + rand() * 0.45
+        const cost = (t.miss * r.miss + t.hit * r.hit + t.out * r.out) / 1e6 * factor
+        row.models[model] = { cost, ...t }
+        const pick = convs[Math.floor(rand() * (back > 30 ? convs.length : convs.length - 1))][0]
+        row.sessions[pick] = (row.sessions[pick] || 0) + cost
+        ledgers[pick] = { seen: { miss: 0, hit: 0, out: 0 }, cost: (ledgers[pick]?.cost || 0) + cost, currency: 'CNY', model, at: d.getTime() }
+        if (withHours) {
+          const off = cost * (1 - factor) * 2
+          row.offPeak += Math.min(cost, off); row.peak += cost - Math.min(cost, off)
+          for (let i = 0; i < 6; i++) { const h = [10, 11, 15, 16, 21, 23, 9, 14][Math.floor(rand() * 8)]; row.hours[h] += cost / 6 }
+        }
       }
-      node.append(...children)
-      return node
+      days[key(d)] = row
     }
-    // Pull the CSS array straight out of lib/client.js so this page never
-    // drifts from the shipped styles.
-    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
-      const css = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+    localStorage.setItem('rhine-splash:bill-days', JSON.stringify({ v: 1, currency: 'CNY', days }))
+    for (const [id, ledger] of Object.entries(ledgers)) localStorage.setItem('rhine-splash:bill:' + id, JSON.stringify(ledger))
+    if (params.has('range')) localStorage.setItem('rhine-splash:cost-range', params.get('range'))
+
+    const realFetch = window.fetch
+    window.fetch = (url, init) => String(url).includes('/rhine-splash/balance')
+      ? Promise.resolve({ ok: true, json: async () => params.has('nokey') ? { status: 'no-key' } : { status: 'ready', available: true, balances: [{ currency: 'CNY', total: '86.20', granted: '10.00', toppedUp: '76.20' }] } })
+      : realFetch(url, init)
+    globalThis.__RHINE_SPLASH__ = { billing: true, uiTheme: true, brand: true, accent: 'rhine', base: 'warm', budgetDaily: params.has('nobudget') ? 0 : 6, budgetSession: params.has('nobudget') ? 0 : 3, todoCenter: true, rowStatus: true }
+    globalThis.__RHINE_BRAND__ = {}
+
+    // Load lib/client.js through a minimal module loader.
+    let factory
+    window.__ModuleLoader__ = { load: (definition) => { factory = definition.factory } }
+    const jsx = (type, props, key) => React.createElement(type, key === undefined ? props : { ...props, key })
+    const P = new Proxy({}, { get: () => () => null })
+    const modules = { react: React, 'react-dom': ReactDOM, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: React.Fragment }, '@deepseek-ai/dsh-client-ui-primitives': P }
+    const store = (value) => ({ getSnapshot: () => value, subscribe: () => () => {} })
+    realFetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
       const style = document.createElement('style')
-      style.textContent = new Function(`return ${css}`)().join('')
+      style.textContent = new Function(`return ${body}`)().join('')
       document.head.append(style)
-
-      const foot = document.getElementById('foot')
-      foot.append(el('button', { type: 'button', class: 'rl-todo-btn', 'data-mode': 'bar', 'data-tone': 'idle' }, [
-        el('span', { class: 'rl-todo-btn-tag', text: '待办' }), el('span', { class: 'rl-todo-btn-n', text: '0' }),
-        el('span', { class: 'rl-todo-btn-sub', text: '' }), el('i', { class: 'rl-todo-btn-pip' }),
-      ]))
-      const card = el('div', { class: 'rl-bill', role: 'button', tabindex: '0', 'aria-haspopup': 'dialog', 'aria-label': '打开费用面板',
-        'data-state': 'ready', 'data-peak': peak ? 'true' : undefined, 'data-open': params.has('closed') ? undefined : 'true' }, [
-        el('div', { class: 'rl-bill-row rl-bill-row--cost' }, [el('span', { class: 'rl-bill-k', text: '本对话' }), el('span', { class: 'rl-bill-v', text: empty ? '—' : '¥0.042' })]),
-        el('div', { class: 'rl-bill-row rl-bill-row--balance' }, [el('span', { class: 'rl-bill-k', text: '余额' }), el('span', { class: 'rl-bill-v', text: '¥12.30' })]),
-        el('span', { class: 'rl-bill-tag', text: peak ? '高峰' : '闲时' }),
-      ])
-      foot.append(card)
-      if (params.has('closed')) return finish()
-
-      const models = empty ? [] : [{ model: 'deepseek-flash', cost: total * 0.76, share: 0.76 }, { model: 'deepseek-v4-pro', cost: total * 0.24, share: 0.24 }]
-      const convs = empty ? [] : [['重构计费模块', 3.12], ['整理周报素材', 1.04], ['翻译 README', 0.62], ['数据清洗脚本', 0.31]]
-      const budget = (label, limit, spent, editing) => {
-        const state = limit === 0 ? 'off' : spent >= limit ? 'over' : spent >= 0.8 * limit ? 'warn' : 'ok'
-        return el('div', { class: 'rl-cost-budget', 'data-state': state }, [
-          el('div', { class: 'rl-cost-row' }, [
-            el('span', { class: 'rl-cost-name', text: label }),
-            editing ? el('input', { class: 'rl-cost-input', type: 'text', inputmode: 'decimal', value: String(limit) })
-              : el('button', { type: 'button', class: 'rl-cost-limit', title: '修改上限', text: limit ? '上限 ' + money(limit) : '未设置' }),
-            el('span', { class: 'rl-cost-pct', text: limit ? Math.round(spent / limit * 100) + '%' : '' }),
-          ]),
-          el('div', { class: 'rl-cost-track' }, [el('i', { style: { '--w': String(limit ? Math.min(1, spent / limit) : 0) } })]),
-        ])
+      new Function(src)()
+      const { internals } = factory((name) => modules[name])
+      const t = (k) => internals.zh[k] ?? k
+      const titles = Object.fromEntries(convs.filter(([id]) => id !== 'gone').map(([id, title, ws]) => [id, { title, cwd: '/Users/me/' + ws, updatedAt: ledgers[id]?.at ?? Date.now() }]))
+      const spaces = ['Deepseek Theme', 'default-workspace', 'data-lab'].map((title, i) => ({ workspaceId: 'w' + i, title, path: '/Users/me/' + title, sessionIds: convs.filter((c) => c[2] === title).map((c) => c[0]) }))
+      const props = {
+        t, sessions: { list: store({ phase: 'ready', byId: titles }) }, workspaces: { list: store({ items: spaces, archivedSessionIds: [] }) },
+        open: (id) => console.log('open', id), saveSetting: async (field, value) => console.log('save', field, value),
+        getNavigation: () => ({ openBundle: () => console.log('settings') }), back: () => console.log('back')
       }
-      const rangeLabel = range === 7 ? '近 7 天' : '近 30 天'
-      const label = (text) => el('div', { class: 'rl-cost-sec-label', text })
-      const body = el('div', { class: 'rl-cost-body' }, [
-        el('div', { class: 'rl-cost-tiles' }, [
-          el('div', { class: 'rl-cost-tile', 'data-kind': 'session' }, [el('span', { class: 'rl-cost-k', text: '本对话' }), el('b', { class: 'rl-cost-v', text: empty ? '—' : '¥0.042' })]),
-          el('div', { class: 'rl-cost-tile', 'data-kind': 'today' }, [el('span', { class: 'rl-cost-k', text: '今日' }), el('b', { class: 'rl-cost-v', text: money(today) })]),
-          el('div', { class: 'rl-cost-tile', 'data-kind': 'range' }, [el('span', { class: 'rl-cost-k', text: rangeLabel }), el('b', { class: 'rl-cost-v', text: money(total) })]),
-        ]),
-        ...(empty ? [el('p', { class: 'rl-cost-empty', text: '还没有记录' })] : [
-          el('div', { class: 'rl-cost-chart-head' }, [
-            el('span', { class: 'rl-cost-sec-label', text: rangeLabel + '每日花费' }),
-            el('div', { class: 'rl-cost-range', role: 'group' }, [
-              el('button', { type: 'button', 'aria-pressed': String(range === 7), text: '7 天' }),
-              el('button', { type: 'button', 'aria-pressed': String(range === 30), text: '30 天' }),
-            ]),
-          ]),
-          el('div', { class: 'rl-cost-chart', 'data-range': String(range), role: 'img' },
-            days.map((cost, i) => el('i', { class: 'rl-cost-bar', style: { '--h': String(max ? cost / max : 0) }, 'data-today': i === days.length - 1 ? 'true' : undefined, title: money(cost) }))),
-          el('div', { class: 'rl-cost-axis' }, [el('span', { text: range === 7 ? '10/15' : '9/22' }), el('span', { text: '今日' })]),
-          el('section', { class: 'rl-cost-sec' }, [label('按模型'), ...models.flatMap((m) => [
-            el('div', { class: 'rl-cost-row', title: '未命中 1,204,880 · 命中 9,876,000 · 输出 412,300' }, [el('span', { class: 'rl-cost-name', text: m.model }), el('span', { class: 'rl-cost-amt', text: money(m.cost) })]),
-            el('div', { class: 'rl-cost-track' }, [el('i', { style: { '--w': String(m.share) } })]),
-          ])]),
-          el('section', { class: 'rl-cost-sec' }, [label('花费最多的对话（累计）'), ...convs.map(([name, cost]) =>
-            el('button', { type: 'button', class: 'rl-cost-conv' }, [el('span', { class: 'rl-cost-name', text: name }), el('span', { class: 'rl-cost-amt', text: money(cost) })]))]),
-        ]),
-        el('section', { class: 'rl-cost-sec rl-cost-budgets' }, [label('预算'),
-          budget('今日', empty ? 0 : 10, today, params.has('editing')),
-          budget('本对话', empty ? 0 : 0.05, 0.042, false),
-        ]),
-      ])
-      const panel = el('div', { class: 'rl-cost-pop', role: 'dialog', 'aria-label': '费用', tabindex: '-1' }, [
-        el('div', { class: 'rl-cost-head' }, [
-          el('span', { class: 'rl-cost-title', text: '费用' }), el('span', { class: 'rl-cost-code', text: 'RL · BILLING' }),
-          el('span', { class: 'rl-cost-period', 'data-peak': peak ? 'true' : undefined, text: peak ? '高峰' : '闲时 · 半价' }),
-        ]),
-        body,
-        el('div', { class: 'rl-cost-foot' }, [
-          el('span', { class: 'rl-cost-balance', title: '赠送 ¥2.00 · 充值 ¥10.30', text: '余额 ¥12.30' }),
-          el('button', { type: 'button', class: 'rl-cost-settings', text: '设置' }),
-        ]),
-        el('p', { class: 'rl-cost-note', text: '按官方价格估算，闲时半价；仅统计本机记录，按天统计从本版本开始。' }),
-      ])
-      // Same placement as BillingWidget.
-      const rect = card.getBoundingClientRect()
-      panel.style.left = Math.max(8, Math.min(rect.left, innerWidth - 348)) + 'px'
-      panel.style.bottom = (innerHeight - rect.top + 8) + 'px'
-      panel.style.setProperty('--rl-cost-max', Math.max(200, rect.top - 64) + 'px')
-      document.body.append(panel)
-      finish()
+      ReactDOM.createRoot(document.getElementById('main')).render(React.createElement(internals.CostPage, props))
+      if (params.has('table')) setTimeout(() => [...document.querySelectorAll('.rl-cp-toggle button')].at(-1)?.click(), 50)
     })
-    function finish() {
-      if (!params.has('shot')) {
-        const links = [['7 天', '?range=7'], ['30 天', '?range=30'], ['编辑预算', '?editing'], ['高峰', '?peak'], ['空', '?empty'], ['收起', '?closed'], ['深色', `${location.search}#dark`]]
-        for (const [text, href] of links) document.getElementById('ctl').append(el('a', { href, text }))
-        document.getElementById('ctl').lastChild.onclick = () => setTimeout(() => location.reload())
-      }
-      if (params.has('at')) {
-        const at = Number(params.get('at'))
-        requestAnimationFrame(() => { for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = at } })
+
+    if (!params.has('shot')) {
+      const ctl = document.getElementById('ctl')
+      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
+        const a = document.createElement('a'); a.textContent = label; a.href = href; ctl.append(a)
+        if (label === '深色') a.addEventListener('click', () => setTimeout(() => location.reload()))
       }
     }
   </script>

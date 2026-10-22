@@ -315,7 +315,7 @@ const encodedImages = [...allImageStyle.matchAll(/base64,([^"\)]+)/g)].map((matc
 assert.deepEqual(encodedImages, Object.values(imageBuffers));
 
 assert.equal(resolveConfig({}).effortSlider, true);
-for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider', 'billing', 'todoCenter']) {
+for (const key of ['enabled', 'uiTheme', 'brand', 'effortSlider', 'billing', 'todoCenter', 'rowStatus']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);
@@ -364,7 +364,7 @@ assert.ok(bootstrapAt < rows[1].text.indexOf(fakeAssets.js));
 for (const snippet of ['toggleAttribute("data-rl-ui"', 'dataset.rlAccent=c.accent', 'dataset.rlBase=c.base', 'setProperty("--rl-accent-custom"', 'removeProperty("--rl-accent-custom"']) assert.ok(rows[1].text.includes(snippet));
 for (const accent of ['custom', 'ocean']) {
   const values = new Map();
-  const root = { dataset: {}, toggleAttribute: (key, on) => on ? values.set(key, '') : values.delete(key),
+  const root = { dataset: {}, setAttribute: (key, value) => values.set(key, value), removeAttribute: (key) => values.delete(key), toggleAttribute: (key, on) => on ? values.set(key, '') : values.delete(key),
     style: { setProperty: (key, value) => values.set(key, value), removeProperty: (key) => values.delete(key) } };
   values.set('--rl-accent-custom', '#fff');
   const config = resolveConfig({ uiTheme: false, accent, accentColor: '#123456', base: 'neutral' });
@@ -375,6 +375,16 @@ for (const accent of ['custom', 'ocean']) {
   assert.equal(root.dataset.rlBase, 'neutral');
   assert.equal(values.get('--rl-accent-custom'), accent === 'custom' ? '#123456' : undefined);
 }
+for (const uiTheme of [true, false]) for (const rowStatus of [true, false]) {
+  const values = new Map([['data-rl-rows', 'on']]);
+  const root = { dataset: {}, toggleAttribute: (key, on) => on ? values.set(key, '') : values.delete(key),
+    setAttribute: (key, value) => values.set(key, value), removeAttribute: (key) => values.delete(key),
+    style: { setProperty() {}, removeProperty() {} } };
+  vm.runInNewContext(buildInjections(resolveConfig({ uiTheme, rowStatus }), fakeAssets)[1].text, { document: { documentElement: root } });
+  assert.equal(values.get('data-rl-rows'), uiTheme && rowStatus ? 'on' : undefined);
+}
+for (const value of [undefined, null, '', 0, 1, {}, [], 'false']) assert.equal(readConfig({ rowStatus: value }).rowStatus, true);
+assert.equal(readConfig({ rowStatus: { get: () => false } }).rowStatus, false);
 assert.ok(rows[1].text.includes('\\u003c/script>'));
 for (const script of [rows[1].text, buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text]) {
   assert.ok(!script.includes('</script>'));
