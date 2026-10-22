@@ -8,7 +8,9 @@
     /* Stand-ins for the app's tokens. The page itself is the real CostPage
        from lib/client.js, rendered with React and 62 days of sample data.
        URL: ?range=1|7|30|62  ?empty  ?nohours  ?nokey  ?nobudget  ?table
-       ?side=0 hides the sidebar  ?shot hides the controls  #dark */
+       ?pop renders the real billing card with costOpen "popup" and opens its
+       panel (its chart opens the page)  ?side=0 hides the sidebar
+       ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
       --dsw-radius-xs: 2px; --dsw-radius-sm: 4px; --dsw-radius-md: 6px;
@@ -33,6 +35,8 @@
     .side { flex: none; width: 260px; display: flex; flex-direction: column; background: var(--side); border-right: .5px solid var(--dsw-alias-border-l2); }
     .side ul { flex: 1; margin: 0; padding: 14px 8px; list-style: none; }
     .side li { padding: 6px 8px; color: var(--dsw-alias-label-secondary); white-space: nowrap; overflow: hidden; }
+    .side .foot { display: flex; flex-wrap: wrap; }
+    .main .idle { padding: 48px; color: var(--dsw-alias-label-tertiary); }
     .side .card { margin: 8px; padding: 8px 10px; border: .5px solid var(--dsw-alias-border-l3); border-radius: 6px; background: var(--dsw-alias-interactive-bg-hover); font: 600 9px/14px ui-monospace, monospace; letter-spacing: .16em; color: var(--dsw-alias-label-tertiary); }
     .main { flex: 1; min-width: 0; height: 100vh; }
     .ctl { position: fixed; right: 16px; bottom: 16px; z-index: 2000; display: flex; gap: 6px; }
@@ -45,7 +49,7 @@
   <div class="app">
     <aside class="side" id="side">
       <ul><li>重构计费模块</li><li>整理周报素材</li><li>翻译 README</li><li>数据清洗脚本</li></ul>
-      <div class="card">RL · BILLING</div>
+      <div class="foot" id="foot"><div class="card">RL · BILLING</div></div>
     </aside>
     <main class="main" id="main"></main>
   </div>
@@ -104,7 +108,7 @@
     window.fetch = (url, init) => String(url).includes('/rhine-splash/balance')
       ? Promise.resolve({ ok: true, json: async () => params.has('nokey') ? { status: 'no-key' } : { status: 'ready', available: true, balances: [{ currency: 'CNY', total: '86.20', granted: '10.00', toppedUp: '76.20' }] } })
       : realFetch(url, init)
-    globalThis.__RHINE_SPLASH__ = { billing: true, uiTheme: true, brand: true, accent: 'rhine', base: 'warm', budgetDaily: params.has('nobudget') ? 0 : 6, budgetSession: params.has('nobudget') ? 0 : 3, todoCenter: true, rowStatus: true }
+    globalThis.__RHINE_SPLASH__ = { costOpen: params.has('pop') ? 'popup' : 'page', billing: true, uiTheme: true, brand: true, accent: 'rhine', base: 'warm', budgetDaily: params.has('nobudget') ? 0 : 6, budgetSession: params.has('nobudget') ? 0 : 3, todoCenter: true, rowStatus: true }
     globalThis.__RHINE_BRAND__ = {}
 
     // Load lib/client.js through a minimal module loader.
@@ -129,13 +133,27 @@
         open: (id) => console.log('open', id), saveSetting: async (field, value) => console.log('save', field, value),
         getNavigation: () => ({ openBundle: () => console.log('settings') }), back: () => console.log('back')
       }
-      ReactDOM.createRoot(document.getElementById('main')).render(React.createElement(internals.CostPage, props))
+      if (!params.has('pop')) ReactDOM.createRoot(document.getElementById('main')).render(React.createElement(internals.CostPage, props))
+      else {
+        // The billing card in the sidebar; the main area shows the page once it is selected.
+        let panel = { activePanelId: null }
+        const listeners = new Set()
+        const panelInfo = { getSnapshot: () => panel, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn) } }
+        const layout = { panelInfo, selectPanel: (id) => { panel = { activePanelId: id }; listeners.forEach((fn) => fn()) } }
+        const Main = () => React.useSyncExternalStore(panelInfo.subscribe, panelInfo.getSnapshot).activePanelId === 'rhine-cost'
+          ? React.createElement(internals.CostPage, { ...props, back: () => layout.selectPanel(null) })
+          : React.createElement('p', { className: 'idle' }, '对话区域')
+        ReactDOM.createRoot(document.getElementById('main')).render(React.createElement(Main))
+        const card = { ...props, wide: true, layout, selection: store({ sessionId: 's02' }) }
+        ReactDOM.createRoot(document.getElementById('foot')).render(React.createElement(internals.BillingWidget, card))
+        setTimeout(() => document.querySelector('.rl-bill')?.click(), 120)
+      }
       if (params.has('table')) setTimeout(() => [...document.querySelectorAll('.rl-cp-toggle button')].at(-1)?.click(), 50)
     })
 
     if (!params.has('shot')) {
       const ctl = document.getElementById('ctl')
-      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
+      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['小卡片', '?pop'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
         const a = document.createElement('a'); a.textContent = label; a.href = href; ctl.append(a)
         if (label === '深色') a.addEventListener('click', () => setTimeout(() => location.reload()))
       }

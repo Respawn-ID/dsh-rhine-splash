@@ -991,11 +991,47 @@ for (const path of ["layout", "layout.selectPanel", "layout.panelInfo.getSnapsho
   }
   const card = render(entry.Component({}).props.children.type, { ...entry.options.inject(), wide: true, t: (key) => key });
   assert.equal(card.props.className, "rl-bill");
-  assert.equal(card.props.role, undefined);
-  assert.equal(card.props.tabIndex, undefined);
-  assert.equal(card.props.onClick, undefined);
-  assert.equal(card.props.onKeyDown, undefined);
+  // Without the page the card falls back to the small panel, which has no page link.
+  assert.equal(card.props.role, "button");
+  assert.equal(card.props["aria-haspopup"], "dialog");
+  assert.equal(card.props["aria-current"], undefined);
 });
+
+// costOpen "popup": the card opens the small panel; its chart and "Full page" open the cost page.
+{
+  const today = new Date();
+  const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const days = { [key]: { models: { "deepseek-v4-flash": { cost: 1, miss: 10, hit: 20, out: 5 } }, sessions: { a: 1 } } };
+  await scenario({ config: { costOpen: "popup" }, stored: { "rhine-splash:bill-days": JSON.stringify({ v: 1, currency: "CNY", days }) } }, ({ slots, services, mount, internals: i }) => {
+    const entry = slots.find(({ options }) => options.id === "rhine-billing");
+    const selected = [], original = services.layout.selectPanel.bind(services.layout);
+    services.layout.selectPanel = (id) => { selected.push(id); original(id); };
+    const view = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), wide: true, t: (key) => i.en[key] || key });
+    let card = view.render();
+    assert.equal(card.props.className, "rl-bill");
+    assert.equal(card.props["aria-haspopup"], "dialog");
+    assert.equal(card.props["aria-expanded"], false);
+    card.props.onClick();
+    assert.deepEqual(selected, [], "the card itself does not open the page");
+    let tree = view.render();
+    const [trigger, panel] = tree.props.children;
+    assert.equal(trigger.props["aria-expanded"], true);
+    assert.equal(panel.props.className, "rl-cost-pop");
+    let nodes = nodesOf(panel);
+    const chart = nodes.find((node) => node.props?.className === "rl-cost-chart");
+    assert.equal(chart.props.role, "button");
+    assert.equal(chart.props.title, i.en.costChartOpen);
+    let prevented = false;
+    chart.props.onKeyDown({ key: "Enter", preventDefault: () => { prevented = true; } });
+    assert.ok(prevented);
+    assert.deepEqual(selected, ["rhine-cost"]);
+    assert.equal(view.render().props.className, "rl-bill", "opening the page closes the panel");
+    view.render().props.onClick();
+    nodes = nodesOf(view.render().props.children[1]);
+    nodes.find((node) => node.props?.children === i.en.costMore).props.onClick();
+    assert.deepEqual(selected, ["rhine-cost", "rhine-cost"]);
+  });
+}
 await scenario({ change: (services) => { delete services.workspaces; } }, ({ slots }) => {
   const page = slots.find(({ options }) => options.name === "main");
   assert.equal(page.options.inject().workspaces, null);

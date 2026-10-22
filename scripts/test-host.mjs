@@ -214,6 +214,7 @@ for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
 assert.equal(DEFAULTS.heroBackground, 'random');
 assert.equal(DEFAULTS.resumeEffect, 'random');
 assert.equal(DEFAULTS.resumeTrigger, 'away');
+assert.equal(DEFAULTS.costOpen, 'page');
 for (const key of ['notifyCurrent', 'notifyOthers', 'notifyAway', 'notifySystem', 'notifyToast', 'notifySound']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
@@ -224,6 +225,7 @@ for (const [key, choices] of [
   ['heroBackground', ['random', 'grid', 'bars', 'full', 'off']],
   ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],
   ['resumeTrigger', ['away', 'always', 'hidden']],
+  ['costOpen', ['page', 'popup']],
 ]) {
   for (const value of choices) {
     assert.equal(resolveConfig({ [key]: value })[key], value);
