@@ -303,14 +303,14 @@ await scenario({ apply: false }, ({ internals: i, warnings }) => {
 const hasSlot = (slots, id) => slots.some(({ options }) => options.id === id);
 const problems = (compat) => Object.fromEntries(compat.getSnapshot().map((issue) => [issue.feature, issue.reason]));
 await scenario({}, async ({ slots, commands, internals: { compat, FIELDS }, advance }) => {
-  for (const name of ["sidebar.footer.action", "conversation.input.right", "plugins.row.config", "settings.section", "sidebar.workspaces.session.menu.item", "sidebar.brand.mark", "sidebar.brand.name", "conversation.hero.brand.mark"]) {
+  for (const name of ["sidebar.footer.action", "conversation.input.right", "plugins.row.config", "settings.section", "sidebar.workspaces.session.menu.item", "shell.overlay", "sidebar.brand.mark", "sidebar.brand.name", "conversation.hero.brand.mark"]) {
     assert.ok(slots.some(({ options }) => options.name === name), name);
   }
   assert.ok(hasSlot(slots, "rhine-billing") && hasSlot(slots, "rhine-todo"));
   const expected = {
     "sidebar.footer.action": { "rhine-billing": "billing", "rhine-todo": "todo" },
     "conversation.input.right": "effort", "plugins.row.config": "settings", "settings.section": "archives",
-    "sidebar.workspaces.session.menu.item": "archives", "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
+    "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": "archives", "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
   };
   for (const { options, Component } of slots) {
     const node = Component({ probe: true });
@@ -340,6 +340,73 @@ await scenario({}, async ({ slots, commands, internals: { compat, FIELDS }, adva
   assert.deepEqual(compat.getSnapshot(), []);
 });
 
+// A session without a scope yet: the slider hides instead of throwing (dsh retires entries whose inject throws).
+await scenario({ change: (services) => { services.modelDirectories.directoryFor = () => { throw new Error('session "x" resolved no scope'); }; } }, ({ slots }) => {
+  const effort = slots.find(({ options }) => options.id === "rhine-effort");
+  const value = effort.options.inject("x");
+  assert.equal(value.available, false);
+  assert.strictEqual(value.directory.getSnapshot(), value.directory.getSnapshot());
+  assert.deepEqual(value.directory.getSnapshot().groups, []);
+});
+
+// Deleting archived conversations: the menu raises one warning dialog, which deletes on confirm.
+await scenario({ change: (services) => {
+  services.workspaces.list = store({ items: [], archivedSessionIds: ["s1", "s2", "s3"] });
+  services.sessions.list = store({ phase: "ready", byId: { s1: { title: "First" }, s2: { displayTitle: "Second" }, s3: {} } });
+} }, async ({ slots, mount, render, services, advance, internals: { deleteRequest, en } }) => {
+  const t = (key) => en[key];
+  const inner = (name) => slots.find(({ options }) => options.name === name).Component({}).props.children.type;
+  const item = slots.find(({ options }) => options.id === "rhine-delete");
+  const menuProps = { ...item.options.inject(), t, useMenuOpenState: () => [true, (open) => { menuOpen = open; }] };
+  let menuOpen = true;
+  const MenuItem = inner("sidebar.workspaces.session.menu.item"), Dialog = inner("shell.overlay");
+  assert.equal(render(MenuItem, { ...menuProps, sessionId: "unarchived" }), null);
+  const row = render(MenuItem, { ...menuProps, sessionId: "s1" });
+  assert.equal(row.props.danger, true);
+  assert.equal(row.props.children, en.delSession);
+  assert.equal(render(Dialog, { t }), null);
+  row.props.onSelect();
+  assert.equal(menuOpen, false, "the menu closes; the dialog lives in shell.overlay");
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push([url, init.headers["x-rhine-splash"], JSON.parse(init.body).sessionId]);
+    const status = { s1: "deleted", s2: "loaded", s3: "missing" }[JSON.parse(init.body).sessionId];
+    return { ok: true, json: async () => ({ status }) };
+  };
+  const open = (props) => {
+    const node = render(Dialog, props);
+    const form = mount(node.type, node.props);
+    return { form, modal: () => form.render() };
+  };
+  let { modal } = open({ t });
+  const dialog = modal();
+  assert.equal(dialog.props.title, en.delTitle);
+  assert.equal(dialog.props.description, "“First” will be deleted permanently. This cannot be undone.");
+  const [cancel, confirm] = dialog.props.footer.props.children;
+  assert.equal(cancel.props.autoFocus, true, "focus starts on Cancel");
+  assert.equal(confirm.props.className, "rl-danger-action");
+  cancel.props.onClick();
+  assert.equal(deleteRequest.getSnapshot(), null);
+  assert.equal(requests.length, 0, "cancel deletes nothing");
+  row.props.onSelect();
+  ({ modal } = open({ t }));
+  await modal().props.footer.props.children[1].props.onClick();
+  assert.deepEqual(requests, [["/rhine-splash/sessions/delete", "1", "s1"]]);
+  assert.equal(deleteRequest.getSnapshot(), null);
+  assert.equal(render(MenuItem, { ...menuProps, sessionId: "s1" }), null, "a deleted row hides at once");
+
+  let settled;
+  deleteRequest.open({ ids: ["s2", "s3"], onSettled: (results) => { settled = results; } });
+  ({ modal } = open({ t }));
+  assert.equal(modal().props.description, "The 2 selected conversations will be deleted permanently. This cannot be undone.");
+  const pending = modal().props.footer.props.children[1].props.onClick();
+  assert.equal(modal().props.footer.props.children[0].props.disabled, true, "no cancel while deleting");
+  await pending;
+  assert.deepEqual([...settled], [["s2", "loaded"], ["s3", "missing"]]);
+  assert.deepEqual(requests.slice(1).map((request) => request[2]), ["s2", "s3"]);
+  advance(5000);
+});
+
 await scenario({ change: (services) => { delete services.uiSession; } }, ({ slots, commands, internals: { compat }, advance }) => {
   assert.ok(!hasSlot(slots, "rhine-todo"));
   assert.ok(!commands.some((command) => command.name === "todo"));
@@ -354,7 +421,7 @@ await scenario({ change: (services) => { delete services.uiSession.sessionStatus
   assert.deepEqual(problems(compat), { notify: "missing", todo: "missing" });
   assert.ok(compat.getSnapshot().every((issue) => issue.detail === "uiSession.sessionStatus.subscribe"));
   assert.ok(!hasSlot(slots, "rhine-todo"));
-  for (const id of ["rhine-billing", "rhine-effort", "rhine-delete", "archived-sessions"]) assert.ok(hasSlot(slots, id));
+  for (const id of ["rhine-billing", "rhine-effort", "rhine-delete", "rhine-delete-confirm", "archived-sessions"]) assert.ok(hasSlot(slots, id));
   assert.ok(slots.some(({ options }) => options.name === "plugins.row.config"));
   assert.ok(slots.some(({ options }) => options.name === "sidebar.brand.mark"));
   assert.deepEqual(commands.map((command) => command.name), ["splash"]);

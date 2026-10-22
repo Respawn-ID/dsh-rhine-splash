@@ -41,7 +41,6 @@
       const style = document.createElement('style')
       style.textContent = new Function(`return ${body}`)().join('')
       document.head.append(style)
-      const confirm = location.search.includes('confirm')
       const rows = [
         ['开屏退场动画调试', 'Deepseek Theme · 10月11日 23:12', true],
         ['推理强度滑块的点阵特效参考 Claude Code 的实现方式', 'Deepseek Theme · 10月12日 14:05', true],
@@ -54,10 +53,9 @@
           <div class="nav"><b>设置</b><span>账户</span><span>通用</span><span>模型</span><span>插件</span><span>智能体预设</span><span class="on">归档对话</span></div>
           <div class="content"><div class="rl-arcs">
             <h2 class="rl-arcs-h">归档对话</h2>
-            <p class="rl-arcs-intro">共 5 个已归档对话。删除会把对话记录移到废纸篓，可以找回；重启 Harness 后从侧栏消失。</p>
+            <p class="rl-arcs-intro">共 5 个已归档对话。删除是永久的，删除后无法恢复。</p>
             <div class="rl-arc-bar"><label class="rl-arc-all"><input type="checkbox" class="rl-arc-check"><span>全选</span></label><span class="rl-arc-count">已选 2 个</span>
-              <span class="rl-arc-progress">${confirm ? '' : '正在删除 1/2'}</span>
-              <button type="button" class="rl-arc-btn rl-arc-btn--danger" ${confirm ? 'data-confirm="true"' : ''}>${confirm ? '确认删除 2 个' : '删除所选（2）'}</button></div>
+              <button type="button" class="rl-arc-btn rl-arc-btn--danger">删除所选（2）</button></div>
             <div class="rl-arc-list">${rows.map(([title, meta, sel, state, note]) => `
               <label class="rl-arc-row" ${sel ? 'data-selected="true"' : ''} ${state ? `data-state="${state}"` : ''}>
                 <input type="checkbox" class="rl-arc-check" ${sel ? 'checked' : ''}>

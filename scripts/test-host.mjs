@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
-import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, trashTarget } from '../lib/index.js';
+import { EventEmitter } from 'node:events';
+import { existsSync, mkdirSync as makeDir, symlinkSync } from 'node:fs';
+import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, forgetSession, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds } from '../lib/index.js';
+import { registerArchives } from '../lib/host/archives.js';
 
 assert.deepEqual(staleArchivedIds(['session-b', 'session-a'], new Set(), () => false),
   ['session-b', 'session-a']);
@@ -16,18 +19,129 @@ assert.deepEqual(staleArchivedIds(['session-live', 'session-missing'], [], (id) 
   ['session-missing']);
 assert.deepEqual(staleArchivedIds([], [], () => false), []);
 
-// Trash path validation is pure: no filesystem or network operations.
+// Path validation is pure: no filesystem or network operations.
 const sessionRoot = '/home/test/.dsh/sessions';
 const sessionDir = join(sessionRoot, 'workspace', 'session-abc');
-assert.equal(trashTarget({ dir: sessionDir, root: sessionRoot, platform: 'darwin', home: '/Users/test', now: 123 }),
-  '/Users/test/.Trash/dsh-session-abc-123');
-assert.equal(trashTarget({ dir: sessionDir, root: sessionRoot, platform: 'linux', home: '/home/test', now: 123 }),
-  '/home/test/.dsh/trash/session-abc-123');
 assert.equal(isSessionDirInside(sessionRoot, sessionDir), true);
+assert.equal(isSessionDirInside(sessionRoot, sessionDir, 'session-abc'), true);
+assert.equal(isSessionDirInside(sessionRoot, sessionDir, 'session-abd'), false);
 assert.equal(isSessionDirInside(sessionRoot, join(sessionRoot, '..', 'session-abc')), false);
 assert.equal(isSessionDirInside(sessionRoot, sessionRoot), false);
 assert.equal(isSessionDirInside(sessionRoot, join(sessionRoot, 'other-folder')), false);
 assert.equal(isSessionDirInside(sessionRoot, '/unrelated/session-abc'), false);
+
+// Archive deletion against fake dsh services and a temporary sessions folder.
+function archiveHost({ root, archived = [], live = [], stored = [], failCache = false }) {
+  const calls = [];
+  const index = () => ({ delete: (id) => calls.push(['index', id]) });
+  const registry = {
+    archivedSessionIds: [...archived],
+    headers: index(), sessionPaths: index(), missingSessionPaths: index(), invalidSessionPaths: index(),
+    list: () => ['w1', 'w2'].map((workspace) => ({ detachSession: async (id) => calls.push(['detach', workspace, id]) })),
+    unpinSession: async (id) => calls.push(['unpin', id]),
+    unarchiveSession: async (id) => {
+      calls.push(['unarchive', id]);
+      registry.archivedSessionIds = registry.archivedSessionIds.filter((item) => item !== id);
+    },
+  };
+  const services = {
+    workspaceRegistry: registry,
+    sessions: { get: (id) => (live.includes(id) ? {} : undefined) },
+    sessionPersistence: {
+      root,
+      list: async () => stored.map(({ id, cwd }) => ({ header: { id, cwd } })),
+      locate: ({ id, cwd }) => ({ path: join(root, cwd, id, 'session.v4.jsonl.zstd') }),
+      coldLogMemo: { delete: (id) => calls.push(['memo', id]) },
+    },
+    sessionProjectionCache: { requireTable: () => ({ delete: async (id) => { calls.push(['cache', id]); if (failCache) throw new Error('cache down'); } }) },
+    sessionQuery: { searchSessions: async (request) => { calls.push(['search', request.limit]); return { items: [] }; } },
+  };
+  const ctx = {
+    get: (key) => services[key],
+    emit: (event, id) => calls.push([event, id]),
+    logger: { info() {}, warn: (message) => calls.push(['warn', message]) },
+  };
+  let handler;
+  registerArchives(ctx, { warn: () => {} })({ effect: (fn) => fn(), webServer: { register: (route) => { handler = route.handler; return () => {}; } } });
+  const request = async (body, headers = { 'x-rhine-splash': '1' }) => {
+    const req = new EventEmitter();
+    Object.assign(req, { method: 'POST', headers, socket: { remoteAddress: '127.0.0.1' }, resume() {} });
+    const res = { statusCode: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; }, end(text) { this.body = text; } };
+    const done = handler(req, res);
+    req.emit('data', Buffer.from(JSON.stringify(body)));
+    req.emit('end');
+    await done;
+    await new Promise((resolve) => setImmediate(resolve));
+    return { status: res.statusCode, value: res.body ? JSON.parse(res.body) : undefined };
+  };
+  return { calls, registry, request };
+}
+{
+  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  try {
+    const dir = join(root, 'ws', 'session-gone');
+    makeDir(dir, { recursive: true });
+    writeFileSync(join(dir, 'session.v4.jsonl.zstd'), 'log');
+    const host = archiveHost({ root, archived: ['session-gone', 'session-live'], live: ['session-live'],
+      stored: [{ id: 'session-gone', cwd: 'ws' }, { id: 'session-live', cwd: 'ws' }] });
+    assert.deepEqual(await host.request({ sessionId: 'session-gone' }, {}), { status: 403, value: undefined });
+    assert.deepEqual(await host.request({ sessionId: '../x' }), { status: 400, value: { status: 'invalid' } });
+    assert.deepEqual(await host.request({ sessionId: 'session-other' }), { status: 409, value: { status: 'not-archived' } });
+    assert.deepEqual(await host.request({ sessionId: 'session-live' }), { status: 409, value: { status: 'loaded' } });
+    assert.equal(host.calls.length, 0);
+    assert.deepEqual(await host.request({ sessionId: 'session-gone' }), { status: 200, value: { status: 'deleted' } });
+    assert.equal(existsSync(dir), false, 'deleted for good, not moved');
+    assert.ok(existsSync(join(root, 'ws')), 'the parent folder stays');
+    assert.deepEqual(host.calls, [
+      ['api-session/removed', 'session-gone'],
+      ['detach', 'w1', 'session-gone'], ['detach', 'w2', 'session-gone'],
+      ['index', 'session-gone'], ['index', 'session-gone'], ['index', 'session-gone'], ['index', 'session-gone'],
+      ['unpin', 'session-gone'], ['unarchive', 'session-gone'],
+      ['memo', 'session-gone'], ['cache', 'session-gone'],
+      ['search', 1],
+    ]);
+    assert.deepEqual(host.registry.archivedSessionIds, ['session-live']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+{
+  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const outside = mkdtempSync(join(tmpdir(), 'rhine-outside-'));
+  try {
+    makeDir(join(root, 'ws'), { recursive: true });
+    writeFileSync(join(outside, 'keep.txt'), 'keep');
+    symlinkSync(outside, join(root, 'ws', 'session-link'));
+    const host = archiveHost({ root, archived: ['session-link', 'session-renamed'],
+      stored: [{ id: 'session-link', cwd: 'ws' }, { id: 'session-renamed', cwd: '../elsewhere' }] });
+    assert.deepEqual(await host.request({ sessionId: 'session-link' }), { status: 400, value: { status: 'invalid' } });
+    assert.deepEqual(await host.request({ sessionId: 'session-renamed' }), { status: 400, value: { status: 'invalid' } });
+    assert.ok(existsSync(join(outside, 'keep.txt')), 'a linked folder is never followed');
+    assert.equal(host.calls.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+}
+{
+  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  try {
+    makeDir(join(root, 'ws', 'session-half'), { recursive: true });
+    const host = archiveHost({ root, archived: ['session-half'], stored: [{ id: 'session-half', cwd: 'ws' }], failCache: true });
+    assert.deepEqual(await host.request({ sessionId: 'session-half' }), { status: 200, value: { status: 'deleted', cleanup: ['cache'] } });
+    assert.ok(host.calls.some(([kind]) => kind === 'warn'));
+    assert.deepEqual(host.registry.archivedSessionIds, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+// Cleanup tolerates a dsh without the internal indexes and caches.
+{
+  const events = [];
+  const failed = await forgetSession({ get: (key) => (key === 'workspaceRegistry' ? { unarchiveSession: async () => events.push('unarchive') } : undefined), emit: (event) => events.push(event) }, 'session-x');
+  assert.deepEqual(failed, []);
+  assert.deepEqual(events, ['api-session/removed', 'unarchive']);
+}
 
 // Configuration and injection tests use fake assets so concurrent asset authoring
 // does not prevent validation of the host plugin.

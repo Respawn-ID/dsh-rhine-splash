@@ -11,7 +11,7 @@ const CONTRACTS = [
   { feature: "todo", needles: ["sessionStatus", "completionUnread", "pendingInteraction", '"plan-review"', "openSession", '"sidebar.footer.action"'] },
   { feature: "billing", needles: ['"sidebar.footer.action"', "binding(", "faceOf", '"tokenUsage"', "directoryFor", "pluginNavigation", "credentials.resolve", "requestRejection"] },
   { feature: "effort", needles: ['"conversation.input.right"', "directoryFor", "subagentAddress", "useAnchoredPosition", "useDismissOnOutsidePointer"] },
-  { feature: "archives", needles: ['"sidebar.workspaces.session.menu.item"', '"settings.section"', "archivedSessionIds", "unarchiveSession", "sessionPersistence", "requestRejection"] },
+  { feature: "archives", needles: ['"sidebar.workspaces.session.menu.item"', '"settings.section"', '"shell.overlay"', "archivedSessionIds", "unarchiveSession", "unpinSession", "detachSession", "sessionPersistence", "requestRejection", "api-session/removed", "missingSessionPaths", "invalidSessionPaths", "coldLogMemo", "sessionProjectionCache", "requireTable", "searchSessions"] },
   { feature: "command", needles: ["popupSelect", "available(", "SettingsFormModel"] }
 ];
 
