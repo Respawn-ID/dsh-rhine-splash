@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.5] - 2026-10-22
+
+新增完整的费用页面、莱茵风格的对话行状态和取消归档，归档对话改为永久删除并立即生效，并修复推理强度滑块可能在之后所有对话中消失的问题。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.2。
+
 ### 新增
 
 - **费用页面**：点击侧栏计费卡片不再弹出小面板，而是在主区域打开完整的费用页面，可切换今日、近 7 天、近 30 天和近 62 天。页面包括总览（区间花费与前一时段对比、日均、缓存命中率与命中节省、闲时节省、余额可用天数）、按模型分色的每日花费图（含每日预算线，可切换为表格）、按模型明细、花费构成、时段分布（标出工作日峰时）、花费最多的对话、预算和按工作区统计。从本版本开始额外记录每小时花费和峰时 / 闲时花费。
@@ -137,7 +141,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.4...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.1...v0.2.2
