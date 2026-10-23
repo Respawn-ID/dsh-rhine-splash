@@ -411,7 +411,9 @@ await scenario({ change: (services) => {
   const directory = store({ status: "ready", current: { provider: "deepseek", model: "v4", reasoningEffort: "max" },
     groups: [{ id: "deepseek", models: [{ id: "v4", reasoning: { efforts, defaultEffort: "high" } }] }] });
   const calls = [];
-  services.answerTest = { calls, directory };
+  const rules = [];
+  services.answerTest = { calls, directory, rules };
+  services.uiConversation = { userText: { register(rule) { rules.push(rule); return () => rules.splice(rules.indexOf(rule), 1); } } };
   services.modelDirectories.directoryFor = () => ({ store: directory, load: async () => {}, select: async ({ reasoningEffort }) => {
     calls.push(["select", reasoningEffort]);
     directory.emit({ ...directory.getSnapshot(), current: { ...directory.getSnapshot().current, reasoningEffort } });
@@ -420,8 +422,8 @@ await scenario({ change: (services) => {
   services.sessions.binding = (id) => ({ session: { ...binding(id).session,
     cancel: async () => { calls.push(["cancel"]); return { ok: true }; },
     prompt: async (content, mode) => { calls.push(["prompt", content[0].text, mode]); return { ok: true }; } } });
-} }, async ({ slots, render, status, services }) => {
-  const { calls, directory } = services.answerTest;
+} }, async ({ slots, render, status, services, internals: { ANSWER_MARK, AnswerNowMark } }) => {
+  const { calls, directory, rules } = services.answerTest;
   const entry = slots.find(({ options }) => options.id === "rhine-answer-now");
   assert.equal(entry.options.order, -1, "left of the effort control");
   const Button = entry.Component({}).props.children.type;
@@ -436,7 +438,7 @@ await scenario({ change: (services) => {
   assert.deepEqual(calls, [["select", "off"], ["cancel"]], "off first, so the follow-up's request skips thinking");
   assert.equal(render(Button, props), null, "hidden while answering");
   status.emit(new Map([["s1", { running: false }]]));
-  assert.deepEqual(calls.at(-1), ["prompt", "answerNowPrompt", "queue"], "the follow-up waits for the stop");
+  assert.deepEqual(calls.at(-1), ["prompt", ANSWER_MARK + "answerNowPrompt", "queue"], "the follow-up waits for the stop");
   status.emit(new Map([["s1", { running: true }]]));
   assert.equal(calls.length, 3);
   status.emit(new Map([["s1", { running: false }]]));
@@ -448,7 +450,17 @@ await scenario({ change: (services) => {
   status.emit(new Map([["s1", { running: true }]]));
   directory.emit({ ...directory.getSnapshot(), current: { ...directory.getSnapshot().current, reasoningEffort: "low" } });
   status.emit(new Map([["s1", { running: false }]]));
-  assert.deepEqual(calls.slice(-1), [["prompt", "answerNowPrompt", "queue"]], "no restore over the user's own choice");
+  assert.deepEqual(calls.slice(-1), [["prompt", ANSWER_MARK + "answerNowPrompt", "queue"]], "no restore over the user's own choice");
+  // The follow-up is hidden: a user-text rule claims the marked message and renders a hidden marker.
+  const [rule] = rules;
+  assert.equal(rule.id, "rhine-answer-now");
+  assert.deepEqual(rule.match(ANSWER_MARK + "answerNowPrompt", 0), { id: "rhine-answer-now", start: 0, end: ANSWER_MARK.length + 15, data: {} });
+  assert.equal(rule.match("answerNowPrompt", 0), undefined, "a message typed by hand stays visible");
+  assert.equal(rule.match("x" + ANSWER_MARK, 1), undefined);
+  assert.ok(slots.some(({ options }) => options.name === "conversation.user.text.node" && options.key === "rhine-answer-now"));
+  const mark = AnswerNowMark();
+  assert.equal(mark.props.hidden, true);
+  assert.equal(mark.props["data-rl-answer-now"], "");
 });
 
 // Deleting archived conversations: the menu raises one warning dialog, which deletes on confirm.

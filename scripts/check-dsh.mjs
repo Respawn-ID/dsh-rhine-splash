@@ -13,6 +13,7 @@ const CONTRACTS = [
   { feature: "cost", needles: ["selectPanel", "panelInfo", "activePanelId", '"main"'] },
   { feature: "effort", needles: ['"conversation.input.right"', "directoryFor", "subagentAddress", "useAnchoredPosition", "useDismissOnOutsidePointer"] },
   { feature: "archives", needles: ['"sidebar.workspaces.session.menu.item"', '"settings.section"', '"shell.overlay"', "archivedSessionIds", "unarchiveSession", "unpinSession", "detachSession", "sessionPersistence", "requestRejection", "api-session/removed", "missingSessionPaths", "invalidSessionPaths", "coldLogMemo", "sessionProjectionCache", "requireTable", "searchSessions"] },
+  { feature: "answerNow", needles: ["sessionStatus", "selectForNextRequest", "async cancel()", "\"queue\"", "userText", "\"conversation.user.text.node\"", "data-chat-flow-key", "\"data-variant\": \"think\"", "data-disclosure-header"] },
   { feature: "command", needles: ["popupSelect", "available(", "SettingsFormModel"] }
 ];
 
