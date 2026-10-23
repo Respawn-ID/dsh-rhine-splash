@@ -20,7 +20,7 @@ const element = () => {
     querySelector: () => null,
     addEventListener(name, fn) { if (!events.has(name)) events.set(name, new Set()); events.get(name).add(fn); },
     removeEventListener: (name, fn) => events.get(name)?.delete(fn),
-    dispatch(name) { for (const fn of events.get(name) || []) fn(); },
+    dispatch(name, event) { for (const fn of events.get(name) || []) fn(event); },
     getAnimations: () => [],
     style: { setProperty: (key, value) => properties.set(key, String(value)), removeProperty: (key) => properties.delete(key), getPropertyValue: (key) => properties.get(key) ?? "" },
     dataset: new Proxy({}, {
@@ -364,6 +364,45 @@ await scenario({ change: (services) => { services.modelDirectories.directoryFor 
   assert.equal(value.available, false);
   assert.strictEqual(value.directory.getSnapshot(), value.directory.getSnapshot());
   assert.deepEqual(value.directory.getSnapshot().groups, []);
+});
+
+// Instant (即答): one click sets effort "off" and the next returns to the level used before.
+await scenario({}, ({ slots, render, memory, windowEvents, internals: { instantBack, en } }) => {
+  const efforts = [{ id: "off" }, { id: "low" }, { id: "high" }, { id: "max" }];
+  assert.equal(instantBack(efforts, "high", "max"), "max");
+  assert.equal(instantBack(efforts, "high", "off"), "high", "never back to off");
+  assert.equal(instantBack(efforts, "high", "xhigh"), "high", "a level this model lacks falls back to its default");
+  assert.equal(instantBack(efforts, "off", undefined), "low");
+  assert.equal(instantBack([{ id: "off" }], "off", undefined), undefined);
+
+  const Control = slots.find(({ options }) => options.id === "rhine-effort").Component({}).props.children.type;
+  const selected = [];
+  const snapshot = { status: "ready", current: { provider: "deepseek", model: "v4", reasoningEffort: "max" },
+    groups: [{ id: "deepseek", models: [{ id: "v4", reasoning: { efforts, defaultEffort: "high" } }] }] };
+  const props = { available: true, load: noop, t: (key) => en[key],
+    directory: { getSnapshot: () => snapshot, subscribe: () => noop },
+    select: async ({ reasoningEffort }) => { selected.push(reasoningEffort); snapshot.current = { ...snapshot.current, reasoningEffort }; } };
+  const instant = () => render(Control, props).props.children[0];
+  assert.equal(instant().props.className, "rl-eff-instant");
+  assert.equal(instant().props["aria-pressed"], false);
+  instant().props.onClick();
+  assert.deepEqual(selected, ["off"]);
+  assert.equal(instant().props["aria-pressed"], true, "lit while thinking is off");
+  assert.deepEqual(JSON.parse(memory.get("rhine-splash:instant-back")), { "deepseek/v4": "max" });
+  instant().props.onClick();
+  assert.deepEqual(selected, ["off", "max"], "back to the level used before");
+  // The slider reaching "off" is the same state; turning Instant off then uses the remembered level.
+  snapshot.current = { ...snapshot.current, reasoningEffort: "off" };
+  assert.equal(instant().props["aria-pressed"], true);
+  memory.delete("rhine-splash:instant-back");
+  instant().props.onClick();
+  assert.equal(selected.at(-1), "high", "nothing remembered: the model's default");
+  // A model that cannot turn thinking off shows no Instant button.
+  snapshot.groups[0].models[0].reasoning = { efforts: [{ id: "low" }, { id: "high" }], defaultEffort: "high" };
+  snapshot.current = { ...snapshot.current, reasoningEffort: "high" };
+  assert.equal(render(Control, props).props.children[0], null);
+  // Alt+T with no control on screen does nothing (and never swallows the key).
+  assert.doesNotThrow(() => windowEvents.dispatch("keydown", { altKey: true, code: "KeyT", preventDefault() { throw new Error("swallowed"); } }));
 });
 
 // Deleting archived conversations: the menu raises one warning dialog, which deletes on confirm.
