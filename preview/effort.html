@@ -88,11 +88,11 @@
     const flags = (level, extra = {}) => Object.entries({ 'data-level': level, 'data-max': level === LEVELS.length - 1 ? 'true' : null, ...extra })
       .filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}="${v}"`).join(' ')
 
-    function control(level, p = level / (LEVELS.length - 1), extra = {}) {
+    function control(level, p = level / (LEVELS.length - 1), extra = {}, running = false) {
       const n = LEVELS.length
       const on = (k) => (k <= level ? 'data-on="true"' : '')
       return `
-        <div class="bar"><div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
+        <div class="bar">${running ? `<button type="button" class="rl-answer-now"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.4 1.2 3.3 9.1h4.1l-1 5.7 6.3-8H8.5z"/></svg><span>立即回答</span></button>` : ""}<div class="rl-eff" ${flags(level, extra)} style="--rl-eff-n:${n}">
           <button type="button" class="rl-eff-instant" aria-pressed="${level === 0}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.4 1.2 3.3 9.1h4.1l-1 5.7 6.3-8H8.5z"/></svg><span>即答</span></button>
           <button type="button" class="rl-eff-trigger"><span class="rl-eff-pips">${LEVELS.map((_, k) => `<i ${on(k)} style="--k:${k}"></i>`).join('')}</span><span class="rl-eff-label">${shimmer(LEVELS[level], level === LEVELS.length - 1)}</span></button>
         </div></div>
@@ -111,7 +111,7 @@
         ['即答（关闭思考）', control(0)],
         ['低', control(1)],
         ['高 · 拖动中', control(2, 0.58, { 'data-dragging': 'true' })],
-        ['最高', control(3)],
+        ['最高 · 思考中', control(3, undefined, {}, true)],
       ].map(([label, html]) => `<div class="cell"><b>${label}</b>${html}</div>`).join('')
     }
   </script>
