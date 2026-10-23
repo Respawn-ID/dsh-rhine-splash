@@ -6,8 +6,9 @@ import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync as makeDir, symlinkSync } from 'node:fs';
-import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, forgetSession, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds } from '../lib/index.js';
+import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, DESKTOP_APP_ID, deletionQueue, drainDeletions, forgetSession, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, toastPayload } from '../lib/index.js';
 import { registerArchives } from '../lib/host/archives.js';
+import { registerNotify, showWindowsToast } from '../lib/host/notify.js';
 
 assert.deepEqual(staleArchivedIds(['session-b', 'session-a'], new Set(), () => false),
   ['session-b', 'session-a']);
@@ -74,10 +75,12 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     await new Promise((resolve) => setImmediate(resolve));
     return { status: res.statusCode, value: res.body ? JSON.parse(res.body) : undefined };
   };
-  return { calls, registry, request };
+  return { calls, ctx, registry, request };
 }
 {
-  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const base = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const root = join(base, 'sessions');
+  makeDir(root);
   try {
     const dir = join(root, 'ws', 'session-gone');
     makeDir(dir, { recursive: true });
@@ -87,7 +90,10 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     assert.deepEqual(await host.request({ sessionId: 'session-gone' }, {}), { status: 403, value: undefined });
     assert.deepEqual(await host.request({ sessionId: '../x' }), { status: 400, value: { status: 'invalid' } });
     assert.deepEqual(await host.request({ sessionId: 'session-other' }), { status: 409, value: { status: 'not-archived' } });
-    assert.deepEqual(await host.request({ sessionId: 'session-live' }), { status: 409, value: { status: 'loaded' } });
+    // Loaded in this run: queued for the next start, nothing forgotten now.
+    assert.deepEqual(await host.request({ sessionId: 'session-live' }), { status: 202, value: { status: 'scheduled' } });
+    assert.deepEqual(await host.request({ sessionId: 'session-live' }), { status: 202, value: { status: 'scheduled' } });
+    assert.deepEqual(JSON.parse(readFileSync(join(base, 'rhine-splash', 'pending-deletions.json'), 'utf8')), { ids: ['session-live'] });
     assert.equal(host.calls.length, 0);
     assert.deepEqual(await host.request({ sessionId: 'session-gone' }), { status: 200, value: { status: 'deleted' } });
     assert.equal(existsSync(dir), false, 'deleted for good, not moved');
@@ -102,16 +108,19 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     ]);
     assert.deepEqual(host.registry.archivedSessionIds, ['session-live']);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
   }
 }
 {
-  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const base = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const root = join(base, 'sessions');
+  makeDir(root);
   const outside = mkdtempSync(join(tmpdir(), 'rhine-outside-'));
   try {
     makeDir(join(root, 'ws'), { recursive: true });
     writeFileSync(join(outside, 'keep.txt'), 'keep');
-    symlinkSync(outside, join(root, 'ws', 'session-link'));
+    // A junction needs no privilege on Windows; elsewhere the type is ignored.
+    symlinkSync(outside, join(root, 'ws', 'session-link'), 'junction');
     const host = archiveHost({ root, archived: ['session-link', 'session-renamed'],
       stored: [{ id: 'session-link', cwd: 'ws' }, { id: 'session-renamed', cwd: '../elsewhere' }] });
     assert.deepEqual(await host.request({ sessionId: 'session-link' }), { status: 400, value: { status: 'invalid' } });
@@ -119,12 +128,14 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     assert.ok(existsSync(join(outside, 'keep.txt')), 'a linked folder is never followed');
     assert.equal(host.calls.length, 0);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
   }
 }
 {
-  const root = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const base = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const root = join(base, 'sessions');
+  makeDir(root);
   try {
     makeDir(join(root, 'ws', 'session-half'), { recursive: true });
     const host = archiveHost({ root, archived: ['session-half'], stored: [{ id: 'session-half', cwd: 'ws' }], failCache: true });
@@ -132,8 +143,93 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     assert.ok(host.calls.some(([kind]) => kind === 'warn'));
     assert.deepEqual(host.registry.archivedSessionIds, []);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
   }
+}
+// Queued deletions run at the next start: loaded ones wait again, unarchived ones are cancelled.
+{
+  const base = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
+  const root = join(base, 'sessions');
+  try {
+    const dir = join(root, 'ws', 'session-old');
+    makeDir(dir, { recursive: true });
+    writeFileSync(join(dir, 'session.v4.jsonl.zstd'), 'log');
+    const host = archiveHost({ root, archived: ['session-old', 'session-busy'], live: ['session-busy'],
+      stored: [{ id: 'session-old', cwd: 'ws' }, { id: 'session-busy', cwd: 'ws' }, { id: 'session-back', cwd: 'ws' }] });
+    const queue = deletionQueue(host.ctx.get('sessionPersistence'));
+    assert.equal(queue.path, join(base, 'rhine-splash', 'pending-deletions.json'));
+    assert.deepEqual(await queue.read(), [], 'no file yet');
+    for (const id of ['session-old', 'session-busy', 'session-back', 'session-old']) await queue.add(id);
+    writeFileSync(queue.path, JSON.stringify({ ids: [...await queue.read(), '../escape', 7] }));
+    assert.deepEqual(await queue.read(), ['session-old', 'session-busy', 'session-back'], 'only valid ids, once');
+    assert.deepEqual(await drainDeletions(host.ctx, queue), ['session-busy']);
+    assert.equal(existsSync(dir), false);
+    assert.deepEqual(await queue.read(), ['session-busy']);
+    assert.ok(host.calls.some(([kind, id]) => kind === 'api-session/removed' && id === 'session-old'));
+    assert.ok(!host.calls.some(([, id]) => id === 'session-back'), 'unarchived since: cancelled, untouched');
+    host.registry.archivedSessionIds = [];
+    assert.deepEqual(await drainDeletions(host.ctx, queue), []);
+    assert.equal(existsSync(queue.path), false, 'an empty queue leaves no file');
+    writeFileSync(queue.path, 'not json');
+    assert.deepEqual(await queue.read(), []);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+}
+// Windows toasts: validated input, host route, and the PowerShell call.
+{
+  assert.equal(DESKTOP_APP_ID, 'com.deepseek.dsh');
+  assert.deepEqual(toastPayload({ title: '  Fix\n  tests ', body: 'Done', tag: 'session-1/../x' }),
+    { app: DESKTOP_APP_ID, title: 'Fix tests', body: 'Done', tag: 'session-1x' });
+  assert.equal(toastPayload({ title: '', body: 'x' }), null);
+  assert.equal(toastPayload({ title: 'x' }), null);
+  assert.equal(toastPayload({ title: 'x'.repeat(500), body: '' }).title.length, 120);
+
+  const route = (platform, show) => {
+    let handler;
+    registerNotify({ get: () => undefined }, { platform, show })({ effect: (fn) => fn(), webServer: { register: (entry) => { handler = entry.handler; return () => {}; } } });
+    return async (body, headers = { 'x-rhine-splash': '1' }, method = 'POST') => {
+      const req = new EventEmitter();
+      Object.assign(req, { method, headers, socket: { remoteAddress: '127.0.0.1' }, resume() {} });
+      const res = { statusCode: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; }, end(text) { this.body = text; } };
+      const done = handler(req, res);
+      req.emit('data', Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)));
+      req.emit('end');
+      await done;
+      return { status: res.statusCode, value: res.body ? JSON.parse(res.body) : undefined };
+    };
+  };
+  const shown = [];
+  const windows = route('win32', async (payload) => { shown.push(payload); return 'shown'; });
+  assert.deepEqual(await windows({ title: 'T', body: 'B', tag: 's1' }, {}), { status: 403, value: undefined });
+  assert.deepEqual(await windows({ title: 'T', body: 'B' }, { 'x-rhine-splash': '1' }, 'GET'), { status: 405, value: undefined });
+  assert.deepEqual(await windows('nope'), { status: 400, value: { status: 'invalid' } });
+  assert.deepEqual(await windows({ title: 'T', body: 'B', tag: 's1' }), { status: 200, value: { status: 'shown' } });
+  assert.deepEqual(shown, [{ app: DESKTOP_APP_ID, title: 'T', body: 'B', tag: 's1' }]);
+  assert.deepEqual(await route('darwin', async () => 'shown')({ title: 'T', body: 'B' }), { status: 404, value: { status: 'unsupported' } });
+
+  const spawned = [];
+  const fakeSpawn = (output, code = 0) => (file, args, options) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.kill = () => {};
+    spawned.push({ file, args, options });
+    setImmediate(() => { if (output) child.stdout.emit('data', output); child.emit('close', code); });
+    return child;
+  };
+  const payload = toastPayload({ title: 'Rhine "<&>"', body: '完成', tag: 's1' });
+  assert.equal(await showWindowsToast(payload, { spawnProcess: fakeSpawn('shown\r\n') }), 'shown');
+  const [{ file, args, options }] = spawned;
+  assert.match(file, /WindowsPowerShell[\\/]v1\.0[\\/]powershell\.exe$/);
+  assert.equal(args[args.length - 2], '-EncodedCommand');
+  const script = Buffer.from(args.at(-1), 'base64').toString('utf16le');
+  assert.ok(script.includes('CreateTextNode') && !script.includes('Rhine'), 'text is passed as data, never as script');
+  assert.ok(script.includes('launch="dsh://open"'));
+  assert.deepEqual(JSON.parse(Buffer.from(options.env.RHINE_TOAST, 'base64').toString('utf8')), payload);
+  assert.equal(options.windowsHide, true);
+  assert.equal(await showWindowsToast(payload, { spawnProcess: fakeSpawn('blocked') }), 'blocked');
+  assert.equal(await showWindowsToast(payload, { spawnProcess: fakeSpawn('', 1) }), 'failed');
+  assert.equal(await showWindowsToast(payload, { spawnProcess: () => { throw new Error('no shell'); } }), 'failed');
 }
 // Cleanup tolerates a dsh without the internal indexes and caches.
 {
