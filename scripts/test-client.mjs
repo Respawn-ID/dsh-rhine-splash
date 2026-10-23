@@ -387,7 +387,7 @@ await scenario({ change: (services) => {
   const requests = [];
   globalThis.fetch = async (url, init) => {
     requests.push([url, init.headers["x-rhine-splash"], JSON.parse(init.body).sessionId]);
-    const status = { s1: "deleted", s2: "loaded", s3: "missing" }[JSON.parse(init.body).sessionId];
+    const status = { s1: "deleted", s2: "scheduled", s3: "missing" }[JSON.parse(init.body).sessionId];
     return { ok: true, json: async () => ({ status }) };
   };
   const open = (props) => {
@@ -419,7 +419,8 @@ await scenario({ change: (services) => {
   const pending = modal().props.footer.props.children[1].props.onClick();
   assert.equal(modal().props.footer.props.children[0].props.disabled, true, "no cancel while deleting");
   await pending;
-  assert.deepEqual([...settled], [["s2", "loaded"], ["s3", "missing"]]);
+  assert.deepEqual([...settled], [["s2", "scheduled"], ["s3", "missing"]]);
+  assert.equal(render(MenuItem, { ...menuProps, sessionId: "s2" }), null, "a scheduled row hides like a deleted one");
   assert.deepEqual(requests.slice(1).map((request) => request[2]), ["s2", "s3"]);
   advance(5000);
 });
@@ -627,6 +628,31 @@ await scenario({ config: { notifySystem: false, notifyToast: false, notifySound:
   assert.equal(notifications.length, 1);
   assert.deepEqual(compat.getSnapshot(), []);
 });
+// The Windows desktop app sends system notices through the host, not Electron's web notifications.
+{
+  const savedLocation = Object.getOwnPropertyDescriptor(globalThis, "location");
+  Object.defineProperty(globalThis, "location", { configurable: true, writable: true, value: { protocol: "dsh-app:" } });
+  try {
+    await scenario({ config: { notifyToast: false, notifySound: false } }, ({ status, services, notifications }) => {
+      const sent = [];
+      globalThis.fetch = async (url, init) => { sent.push([url, init.method, init.headers["x-rhine-splash"], JSON.parse(init.body)]); return { ok: true, json: async () => ({ status: "shown" }) }; };
+      document.documentElement.dataset = { platform: "win32" };
+      document.hasFocus = () => false;
+      services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Conversation" } } });
+      status.emit(new Map([["a", { running: true }]]));
+      status.emit(new Map([["a", { running: false }]]));
+      assert.equal(notifications.length, 0, "no Electron notification on Windows desktop");
+      assert.deepEqual(sent, [["/rhine-splash/notify", "POST", "1", { title: "Conversation", body: "ntfDone", tag: "a" }]]);
+      document.documentElement.dataset = { platform: "darwin" };
+      status.emit(new Map([["a", { running: true }]]));
+      status.emit(new Map([["a", { running: false }]]));
+      assert.equal(notifications.length, 1, "other desktop platforms keep web notifications");
+      assert.equal(sent.length, 1);
+    });
+  } finally {
+    if (savedLocation) Object.defineProperty(globalThis, "location", savedLocation); else delete globalThis.location;
+  }
+}
 await scenario({ config: { resumeEffect: "off" } }, ({ windowEvents, configStore, advance }) => {
   const back = () => { windowEvents.dispatch("blur"); advance(0); windowEvents.dispatch("focus"); advance(122); };
   const count = () => document.body.children.filter((node) => node.className === "rl-resume rl-resume--scan").length;
