@@ -405,6 +405,52 @@ await scenario({}, ({ slots, render, memory, windowEvents, internals: { instantB
   assert.doesNotThrow(() => windowEvents.dispatch("keydown", { altKey: true, code: "KeyT", preventDefault() { throw new Error("swallowed"); } }));
 });
 
+// Answer now (立即回答): switch to "off", stop the reply, follow up once idle, restore after the answer.
+await scenario({ change: (services) => {
+  const efforts = [{ id: "off" }, { id: "low" }, { id: "high" }, { id: "max" }];
+  const directory = store({ status: "ready", current: { provider: "deepseek", model: "v4", reasoningEffort: "max" },
+    groups: [{ id: "deepseek", models: [{ id: "v4", reasoning: { efforts, defaultEffort: "high" } }] }] });
+  const calls = [];
+  services.answerTest = { calls, directory };
+  services.modelDirectories.directoryFor = () => ({ store: directory, load: async () => {}, select: async ({ reasoningEffort }) => {
+    calls.push(["select", reasoningEffort]);
+    directory.emit({ ...directory.getSnapshot(), current: { ...directory.getSnapshot().current, reasoningEffort } });
+  } });
+  const binding = services.sessions.binding;
+  services.sessions.binding = (id) => ({ session: { ...binding(id).session,
+    cancel: async () => { calls.push(["cancel"]); return { ok: true }; },
+    prompt: async (content, mode) => { calls.push(["prompt", content[0].text, mode]); return { ok: true }; } } });
+} }, async ({ slots, render, status, services }) => {
+  const { calls, directory } = services.answerTest;
+  const entry = slots.find(({ options }) => options.id === "rhine-answer-now");
+  assert.equal(entry.options.order, -1, "left of the effort control");
+  const Button = entry.Component({}).props.children.type;
+  const props = { ...entry.options.inject("s1"), t: (key) => key };
+  assert.equal(render(Button, props), null, "nothing while idle");
+  status.emit(new Map([["s1", { running: true, pendingInteraction: { kind: "approval" } }]]));
+  assert.equal(render(Button, props), null, "nothing while waiting for the user");
+  status.emit(new Map([["s1", { running: true }]]));
+  const button = render(Button, props);
+  assert.equal(button.props.className, "rl-answer-now");
+  await button.props.onClick();
+  assert.deepEqual(calls, [["select", "off"], ["cancel"]], "off first, so the follow-up's request skips thinking");
+  assert.equal(render(Button, props), null, "hidden while answering");
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls.at(-1), ["prompt", "answerNowPrompt", "queue"], "the follow-up waits for the stop");
+  status.emit(new Map([["s1", { running: true }]]));
+  assert.equal(calls.length, 3);
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls.at(-1), ["select", "max"], "the previous level comes back once the answer ends");
+  // A level changed by hand in the meantime is left alone.
+  status.emit(new Map([["s1", { running: true }]]));
+  await render(Button, props).props.onClick();
+  status.emit(new Map([["s1", { running: false }]]));
+  status.emit(new Map([["s1", { running: true }]]));
+  directory.emit({ ...directory.getSnapshot(), current: { ...directory.getSnapshot().current, reasoningEffort: "low" } });
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls.slice(-1), [["prompt", "answerNowPrompt", "queue"]], "no restore over the user's own choice");
+});
+
 // Deleting archived conversations: the menu raises one warning dialog, which deletes on confirm.
 await scenario({ change: (services) => {
   services.workspaces.list = store({ items: [], archivedSessionIds: ["s1", "s2", "s3"] });
@@ -650,7 +696,7 @@ await scenario({ config: { todoCenter: false, notifySystem: false, notifyToast: 
   assert.deepEqual(problems(compat), { todo: "absent", notify: "absent" });
 });
 await scenario({ config: { notifySystem: false, notifyToast: false, notifySound: false } }, ({ status, services, notifications, configStore, internals: { compat } }) => {
-  assert.equal(status.listeners.size, 3, "notice, to-do and billing watch start even when channels are off");
+  assert.equal(status.listeners.size, 4, "notice, to-do, billing and answer-now watch start even when channels are off");
   document.hasFocus = () => false;
   services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Conversation" } } });
   const endRun = () => { status.emit(new Map([["a", { running: true }]])); status.emit(new Map([["a", { running: false }]])); };
@@ -1217,7 +1263,7 @@ await scenario({ config: { todoCenter: false }, change: (services) => {
     assert.equal(statusTimes.get("a").at, stamp - 1);
     assert.equal(statusTimes.get("b").at, null);
     assert.strictEqual(slots.find(({ options }) => options.id === "rhine-todo").options.inject().since, statusTimes);
-    assert.equal(status.listeners.size, 3, "one tracker subscription alongside notifications and billing");
+    assert.equal(status.listeners.size, 4, "one tracker subscription alongside notifications, billing and answer-now");
     status.emit(new Map([["a", {}]]));
     assert.equal(statusTimes.size, 0);
     dispose();
