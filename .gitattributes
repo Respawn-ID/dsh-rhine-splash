@@ -1,0 +1,5 @@
+# Same line endings on macOS and Windows: LF in the repository and in the working tree.
+* text=auto eol=lf
+*.jpg binary
+*.png binary
+*.tgz binary
