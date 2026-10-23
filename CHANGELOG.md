@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.6] - 2026-10-24
+
+新增即答开关和思考中的「立即回答」，重新设计切回动效与空白页背景，切回动效默认改为最小化或隐藏后播放，并修复 Windows 上删除归档对话需要重启两次、桌面版收不到系统通知的问题。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.2。
+
 ### 新增
 
 - **即答开关**：推理强度按钮左边新增「⚡ 即答」，参照 Claude Code 的思考开关（Alt+T）和 DeepSeek 网页版的「深度思考」按钮。点一下当前对话改为不思考、直接回答（推理强度「关闭」），再点一下回到之前的档位（按模型记住，没有记录时用模型默认档）；在对话里按 Alt+T（macOS 为 Option+T）同样可以切换。只在支持关闭思考的模型上显示，随「推理强度滑块」开关一起显示或隐藏。
@@ -166,7 +170,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.2...v0.2.3
