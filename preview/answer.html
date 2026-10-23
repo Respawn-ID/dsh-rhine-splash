@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Answer Now Preview</title>
+  <style>
+    /* Stand-ins for the transcript: only the stable attributes dsh renders
+       (data-variant / data-state / data-disclosure-header / data-chat-flow-key)
+       matter, the rules for them come from lib/client.js. #dark, ?expanded */
+    body {
+      --dsw-static-deepseek-500: #e46f24; --dsw-alias-bg-base: #fbfaf7; --dsw-radius-md: 6px;
+      --ink: #12110f; --muted: #8b877f; --line: rgba(18, 17, 15, .1);
+      margin: 0; height: 100vh; display: flex; flex-direction: column; background: var(--dsw-alias-bg-base); color: var(--ink);
+      font: 14px/1.6 -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+    }
+    body[data-ds-dark-theme] { --dsw-static-deepseek-500: #f0893e; --dsw-alias-bg-base: #1d1c1a; --ink: #f6f5f1; --muted: #8f8a80; --line: rgba(255, 255, 255, .08); }
+    .scroll { flex: 1; overflow: auto; }
+    .col { width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 24px 0 80px; display: flex; flex-direction: column; gap: 14px; }
+    .user { align-self: flex-end; max-width: 70%; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+    .think [data-disclosure-header] { display: flex; align-items: center; gap: 8px; height: 24px; color: var(--muted); font-size: 13px; background: var(--dsw-alias-bg-base); }
+    .think[data-expanded] [data-disclosure-header] { position: sticky; top: 0; z-index: 1; }
+    .think .sum { flex: auto; min-width: 0; white-space: nowrap; overflow: hidden; mask-image: linear-gradient(90deg, #000 calc(100% - 48px), #0000); }
+    .think .body { display: none; padding: 4px 0 4px 22px; color: var(--muted); font-size: 13px; }
+    .think[data-expanded] .body { display: block; }
+    .answer { color: var(--muted); }
+    .composer { height: 96px; border-top: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <div class="scroll"><div class="col">
+    <div data-chat-flow-key="u1" data-chat-flow-kind="user"><div class="user">帮我分析一下这个函数为什么会内存泄漏？</div></div>
+    <div data-chat-flow-key="a1"><div class="think" data-variant="think" data-state="running" id="think">
+      <div data-disclosure-header>◌ 思考中 <span class="sum">先看闭包里引用了哪些外部变量，再检查事件监听是否在卸载时移除，定时器也可能一直持有引用……</span></div>
+      <div class="body">先看闭包里引用了哪些外部变量。<br>再检查事件监听是否在卸载时移除。<br>定时器也可能一直持有引用。<br>还要看缓存 Map 有没有上限。<br>……</div>
+    </div></div>
+    <div data-chat-flow-key="u2" data-chat-flow-kind="user"><div class="user"><span data-rl-answer-now hidden></span>跳过思考，直接回答上面的问题。</div></div>
+    <div class="answer">（这条补发的消息在 dsh 中会被隐藏，上面这一行不应出现。）</div>
+    <div style="height: 900px"></div>
+  </div></div>
+  <div class="composer"></div>
+  <button type="button" class="rl-answer-now"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.4 1.2 3.3 9.1h4.1l-1 5.7 6.3-8H8.5z"/></svg><span>立即回答</span></button>
+  <script>
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    if (location.search.includes('expanded')) document.getElementById('think').setAttribute('data-expanded', '')
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${body}`)().join('')
+      document.head.append(style)
+    })
+  </script>
+</body>
+</html>
