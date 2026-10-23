@@ -67,7 +67,7 @@ Prefer the UI: the config page (sidebar **插件** → this plugin → **配置*
 | `budgetDaily`, `budgetSession` | `0` | numbers, 0–100000, 2 decimals, in the balance currency; 0 turns the reminder off |
 | `heroBackground` | `random` | `random` (per launch, never repeats the last one) \| `grid` \| `bars` \| `full` \| `off` — blank conversation page background |
 | `resumeEffect` | `random` | `random` (per play, never repeats the last one) \| `scan` \| `iris` \| `glitch` \| `off` — effect when the window returns from the background |
-| `resumeTrigger` | `away` | `away` (back after ≥ 30 s away) \| `always` (every refocus) \| `hidden` (only after minimize / hide / another Space) |
+| `resumeTrigger` | `hidden` | `hidden` (only after minimize / hide / another Space) \| `away` (back after ≥ 30 s away) \| `always` (every refocus) |
 | `notifyCurrent`, `notifyOthers`, `notifyAway` | `true` | booleans — when Rhine notices fire: for the open conversation, for other conversations while in the app, while the app is unfocused or hidden |
 | `notifySystem`, `notifyToast`, `notifySound` | `true` | booleans — Rhine notices when a run ends or waits for the user: system notification (only while the window is in the background), in-app card, chime |
 | `title`, `subtitle`, `code` | `DEEPSEEK HARNESS`, `RHINE LAB STYLE · ARTIFICIAL INTELLIGENCE DIVISION`, `RL-DSH/0.2` | strings, ≤ 80 chars |
