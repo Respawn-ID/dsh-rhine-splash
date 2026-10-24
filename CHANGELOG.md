@@ -4,8 +4,13 @@
 
 ## [未发布]
 
+### 修复
+
+- **Windows 上的等宽字体**：待办条、计费卡片、费用页面和莱茵通知里的英文标签与数字在 Windows 上会退回 Courier New，现在改用 Cascadia Mono 或 Consolas，与 macOS 上的观感一致。
+
 ### 变更
 
+- README 主界面截图更新为 DeepSeek Harness 0.2.1-rc.3 上的当前样式。
 - 新增 GitHub Actions 工作流 `publish`：在 Actions 页面点一下即可把已发布的版本同步到 npm（通过 npm 可信发布，附带来源证明）。
 
 ## [0.2.7] - 2026-10-24
