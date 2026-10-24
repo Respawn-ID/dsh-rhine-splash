@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 变更
+
+- 新增 GitHub Actions 工作流 `publish`：在 Actions 页面点一下即可把已发布的版本同步到 npm（通过 npm 可信发布，附带来源证明）。
+
 ## [0.2.7] - 2026-10-24
 
 适配 DeepSeek Harness 0.2.1-rc.3，修复侧边栏状态标记、宽窗口下空白页光晕和「预览版」标签的显示问题，并允许发布至 npm。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.3。
