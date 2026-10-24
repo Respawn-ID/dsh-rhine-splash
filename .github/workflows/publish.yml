@@ -1,0 +1,62 @@
+name: publish
+# One click from Actions → publish → Run workflow publishes a released tag
+# to npm. Authenticates through npm Trusted Publishing (OIDC, configured on
+# npmjs.com for this repository and this file); an NPM_TOKEN secret is used
+# only if one is set. Publishing a version that is already on npm is skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的版本标签，例如 v0.2.7（留空则使用最新的 Release）
+        required: false
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency: publish-npm
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - id: tag
+        name: Resolve tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$INPUT_TAG"
+          [ -n "$tag" ] || tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          case "$tag" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::不是版本标签：$tag"; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted Publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - id: version
+        name: Check version
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::package.json 的版本 $version 与标签 $TAG 不一致"
+            exit 1
+          fi
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version 已在 npm 上，跳过发布"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm test
+      - if: steps.version.outputs.skip != 'true'
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
