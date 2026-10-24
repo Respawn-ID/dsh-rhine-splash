@@ -143,9 +143,13 @@ html[data-rl-ui][data-rl-base=neutral] body {
 html[data-rl-ui] body {
   --dsw-alias-label-deep-diving: color-mix(in srgb, var(--dsw-static-deepseek-500) 80%, var(--dsw-static-neutral-bluish-1000));
   --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--dsw-static-deepseek-500) 32%, var(--dsw-static-neutral-bluish-00));
+  /* Only the blank page's 预览版 badge reads it, on the accent's tertiary
+     fill; Harness's navy clashes with the accent there. */
+  --dsw-alias-label-primary-bluish: color-mix(in srgb, var(--dsw-static-deepseek-600) 70%, var(--dsw-static-neutral-bluish-1000));
 }
 
 html[data-rl-ui] body[data-ds-dark-theme] {
   --dsw-alias-label-deep-diving: color-mix(in srgb, var(--dsw-static-deepseek-400) 72%, var(--dsw-static-neutral-bluish-400));
   --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, var(--dsw-static-deepseek-300) 60%, var(--dsw-static-deepseek-400));
+  --dsw-alias-label-primary-bluish: var(--dsw-static-deepseek-200);
 }
