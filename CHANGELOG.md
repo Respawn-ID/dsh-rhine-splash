@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.7] - 2026-10-24
+
+适配 DeepSeek Harness 0.2.1-rc.3，修复侧边栏状态标记、宽窗口下空白页光晕和「预览版」标签的显示问题，并允许发布至 npm。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.3。
+
 ### 变更
 
 - 适配 DeepSeek Harness 0.2.1-rc.3：新增的「更多」菜单沿用莱茵主题，草稿和模型列表的改动不影响插件。
@@ -181,7 +185,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.3...v0.2.4
