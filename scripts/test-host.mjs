@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +7,8 @@ import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync as makeDir, symlinkSync } from 'node:fs';
 import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, DESKTOP_APP_ID, deletionQueue, drainDeletions, forgetSession, isSessionDirInside, name, parseBalance, parseLatest, isNewer, readConfig, resolveConfig, staleArchivedIds, toastPayload } from '../lib/index.js';
+import { registerStore } from '../lib/host/store.js';
+import { emptyRecords, applyRecordOp, pruneRecords } from '../lib/index.js';
 import { registerArchives } from '../lib/host/archives.js';
 import { registerUpdate } from '../lib/host/update.js';
 import { registerNotify, showWindowsToast } from '../lib/host/notify.js';
@@ -739,3 +741,205 @@ for (const [latest, current, newer] of [['0.2.8', '0.2.7', true], ['0.10.0', '0.
 }
 
 console.log('Host tests passed (weeklyReport default/validation, update route/cache/fallback/auth, new settings/version, accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');
+
+// Local records: pure replay and real interleaved host writers.
+{
+  const now = Date.now(), day = localDay(now), hour = new Date(now).getHours();
+  const rates = { miss: 2, hit: 0.04, out: 8 };
+  const usage = (id = 'a', seen = { miss: 1000000, hit: 500000, out: 100000 }, extra = {}) => ({
+    type: 'usage', sessionId: id, model: 'deepseek-flash', currency: 'CNY', seen,
+    prices: { CNY: rates, USD: { miss: 0.3, hit: 0.006, out: 1.2 } }, peak: true, day, hour, at: now, ...extra,
+  });
+  const step = (doc, op) => applyRecordOp(doc, op, now);
+  const blank = emptyRecords(), first = step(blank, usage());
+  const cost = (seen, peak = true) => (seen.miss * rates.miss + seen.hit * rates.hit + seen.out * rates.out) / 1000000 * (peak ? 1 : 0.5);
+  assert.equal(first.result.added, cost(usage().seen));
+  assert.deepEqual(first.result.ledger, { seen: usage().seen, cost: cost(usage().seen), currency: 'CNY', model: 'deepseek-flash', at: now });
+  assert.deepEqual(blank, emptyRecords(), 'pure helpers do not mutate');
+  assert.equal(step(first.doc, usage()).result.added, 0);
+  const higher = usage('a', { miss: 2000000, hit: 500000, out: 200000 }, { peak: false });
+  const second = step(first.doc, higher);
+  assert.equal(second.result.added, cost({ miss: 1000000, hit: 0, out: 100000 }, false));
+  assert.equal(second.doc.billDays.days[day].models['deepseek-flash'].miss, 2000000);
+  assert.equal(second.doc.billDays.days[day].offPeak, second.result.added);
+  assert.equal(second.doc.billDays.days[day].hours[hour], second.result.ledger.cost);
+  const reset = step(second.doc, usage('a', { miss: 1, hit: 0, out: 0 }));
+  assert.equal(reset.result.added, 0, 'a negative bucket does not add cost');
+  assert.deepEqual(reset.result.ledger.seen, { miss: 1, hit: 0, out: 0 });
+  const unknown = step(blank, usage('unknown', undefined, { prices: { CNY: null, USD: null } }));
+  assert.equal(unknown.result.ledger.cost, null);
+  assert.equal(step(unknown.doc, usage('unknown')).result.added, first.result.added, 'newly priced ledgers price all usage');
+  assert.equal(step(first.doc, usage('a', undefined, { currency: 'USD' })).result.ledger.currency, 'CNY');
+  const usd = step(first.doc, usage('usd', undefined, { currency: 'USD' }));
+  assert.equal(usd.doc.billDays.currency, 'USD');
+  assert.deepEqual(Object.keys(usd.doc.billDays.days[day].sessions), ['usd'], 'currency switch resets day log');
+  assert.equal(step(blank, { ...usage(), hour: 24 }).result, null);
+  assert.equal(step(blank, { ...usage(), day: '2026-02-30' }).result, null);
+  assert.equal(step(blank, { ...usage(), prices: { CNY: { miss: Infinity }, USD: null } }).result, null);
+  const run = { type: 'run', sessionId: 'a', day, ms: 3200, endedAt: now };
+  const ran = step(blank, run);
+  assert.deepEqual(ran.doc.runDays.days[day], { runs: 1, ms: 3200, longest: 3200 });
+  for (const offset of [-15000, 0, 14999, 15000]) assert.deepEqual(step(ran.doc, { ...run, endedAt: now + offset }).doc.runDays, ran.doc.runDays);
+  assert.equal(step(ran.doc, { ...run, endedAt: now + 15001, ms: 5000 }).doc.runDays.days[day].runs, 2);
+  const alerts = { budget: { day, daily: [80], ids: { a: { day, levels: [80] } } }, balance: { limit: 5, fired: true } };
+  const alerted = step(first.doc, { type: 'alerts', ...alerts }).doc;
+  assert.deepEqual(alerted.alerts, alerts);
+  assert.equal(step(alerted, { type: 'alerts', balance: null }).doc.alerts.balance, null);
+  const imported = { type: 'import', origin: 'http://localhost:1234', billDays: second.doc.billDays, ledgers: second.doc.ledgers,
+    runDays: ran.doc.runDays, alerts };
+  const merged = step(alerted, imported).doc;
+  assert.deepEqual(merged.billDays, second.doc.billDays);
+  assert.deepEqual(merged.ledgers, second.doc.ledgers);
+  assert.deepEqual(step(merged, imported).doc, merged, 'importing an origin twice is identical');
+  const lower = { ...imported, origin: 'dsh-app://app', billDays: first.doc.billDays, ledgers: first.doc.ledgers };
+  const maxed = step(merged, lower).doc;
+  assert.deepEqual(maxed.billDays, merged.billDays);
+  assert.deepEqual(maxed.ledgers, merged.ledgers);
+  assert.deepEqual(maxed.alerts, alerts);
+  const tie = { ...second.doc.ledgers.a, at: now + 1, model: 'later' };
+  assert.equal(step(merged, { type: 'import', origin: 'later', ledgers: { a: tie } }).doc.ledgers.a.model, 'later');
+  assert.equal(step(merged, { ...imported, origin: 'usd', billDays: usd.doc.billDays }).doc.billDays.currency, 'CNY');
+  const moreRuns = step(merged, { type: 'import', origin: 'runs-max', runDays: { v: 1, days: { [day]: { runs: 3, ms: 5000, longest: 2000 } } } }).doc;
+  assert.deepEqual(moreRuns.runDays.days[day], { runs: 3, ms: 5000, longest: 3200 });
+  const mixedHours = structuredClone(first.doc.billDays); mixedHours.days[day].hours[(hour + 1) % 24] = 10;
+  const timingMerge = step(merged, { type: 'import', origin: 'hours-max', billDays: mixedHours }).doc;
+  assert.equal(timingMerge.billDays.days[day].hours[hour], merged.billDays.days[day].hours[hour]);
+  assert.equal(timingMerge.billDays.days[day].hours[(hour + 1) % 24], 10);
+  assert.equal(timingMerge.billDays.days[day].offPeak, merged.billDays.days[day].offPeak);
+  const old = new Date(now); old.setDate(old.getDate() - 62);
+  const oldDay = localDay(old), stale = structuredClone(merged);
+  stale.billDays.days[oldDay] = first.doc.billDays.days[day];
+  stale.runDays.days[oldDay] = ran.doc.runDays.days[day];
+  stale.ledgers.old = { ...tie, at: now - 63 * 86400000 };
+  stale.ledgers.a.at = now - 63 * 86400000;
+  stale.runEnds.old = now - 86400001;
+  const pruned = pruneRecords(stale, now);
+  assert.equal(pruned.billDays.days[oldDay], undefined);
+  assert.equal(pruned.runDays.days[oldDay], undefined);
+  assert.equal(pruned.ledgers.old, undefined);
+  assert.ok(pruned.ledgers.a, 'dated sessions keep their old ledger');
+  assert.equal(pruned.runEnds.old, undefined);
+  const boundary = new Date(now); boundary.setDate(boundary.getDate() - 61);
+  stale.runDays.days[localDay(boundary)] = ran.doc.runDays.days[day];
+  assert.ok(pruneRecords(stale, now).runDays.days[localDay(boundary)]);
+
+  const base = mkdtempSync(join(tmpdir(), 'rhine-records-')), root = join(base, 'sessions'), folder = join(base, 'rhine-splash'), file = join(folder, 'records.json');
+  const host = (sessionRoot = root, rejection) => {
+    let handler;
+    const disposers = [], warnings = [];
+    const register = registerStore({ get: (key) => key === 'sessionPersistence' ? (sessionRoot ? { root: sessionRoot } : undefined)
+      : key === 'connection' && rejection ? { requestRejection: () => rejection } : undefined }, { warn: (...args) => warnings.push(args) });
+    register({ effect: (fn) => { const cleanup = fn(); if (typeof cleanup === 'function') disposers.push(cleanup); },
+      webServer: { register: (route) => { assert.equal(route.path, '/rhine-splash/records'); handler = route.handler; return () => {}; } } });
+    const request = async (ops, { headers = { 'x-rhine-splash': '1' }, url = '/rhine-splash/records', raw, method = ops === undefined ? 'GET' : 'POST' } = {}) => {
+      const req = Object.assign(new EventEmitter(), { method, url, headers, socket: { remoteAddress: '127.0.0.1' }, resume() {} });
+      const res = { headers: {}, setHeader(key, value) { this.headers[key] = value; }, end(value) { this.body = value; } };
+      const pending = handler(req, res);
+      if (method === 'POST') { req.emit('data', Buffer.from(raw ?? JSON.stringify({ ops }))); req.emit('end'); }
+      await pending;
+      return { code: res.statusCode, value: res.body ? JSON.parse(res.body) : undefined };
+    };
+    return { request, flush: register.flush, dispose: async () => { for (const fn of disposers.splice(0).reverse()) await fn(); }, warnings };
+  };
+  const hosts = [];
+  try {
+    const a = host(), b = host(); hosts.push(a, b);
+    assert.equal((await a.request(undefined, { headers: {} })).code, 403);
+    const auth = host(root, 401); hosts.push(auth);
+    assert.equal((await auth.request()).code, 401);
+    assert.equal((await a.request(undefined, { method: 'PUT' })).code, 405);
+    assert.equal((await a.request()).value.status, 'ready');
+    assert.deepEqual((await a.request(undefined, { url: '/rhine-splash/records?rev=0' })).value, { status: 'ready', rev: 0, unchanged: true });
+    assert.equal((await a.request(Array(201).fill(run))).code, 400);
+    assert.equal((await a.request([], { raw: 'x'.repeat(512 * 1024 + 1) })).code, 413);
+    assert.equal((await a.request([], { raw: '{' })).code, 400);
+    assert.deepEqual((await a.request([{}, { ...usage(), hour: -1 }])).value.results, [null, null]);
+    await a.request([usage(), higher]);
+    await b.request([usage(), higher, usage('b')]);
+    await a.flush(); await b.flush();
+    let disk = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(disk.rev, 2);
+    assert.equal(disk.ledgers.a.cost, second.result.ledger.cost, 'replaying superseded observations must not double count');
+    assert.equal(disk.billDays.days[day].sessions.a, second.result.ledger.cost);
+    assert.equal(disk.billDays.days[day].sessions.b, first.result.ledger.cost);
+    assert.deepEqual((await a.request()).value.doc.ledgers, disk.ledgers, 'GET reloads other host writes');
+    assert.deepEqual((await a.request(undefined, { url: '/rhine-splash/records?rev=2' })).value, { status: 'ready', rev: 2, unchanged: true });
+    writeFileSync(join(folder, 'records.lock'), 'stale');
+    const oldTime = new Date(now - 11000); utimesSync(join(folder, 'records.lock'), oldTime, oldTime);
+    await a.request([run]); await a.flush();
+    assert.equal(existsSync(join(folder, 'records.lock')), false);
+    await b.request([{ ...run, endedAt: now + 500 }]); await b.flush();
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).runDays.days[day].runs, 1);
+    await a.request([usage('concurrent-a')]); await b.request([usage('concurrent-b')]);
+    await Promise.all([a.flush(), b.flush()]);
+    assert.ok(JSON.parse(readFileSync(file, 'utf8')).ledgers['concurrent-a']);
+    assert.ok(JSON.parse(readFileSync(file, 'utf8')).ledgers['concurrent-b']);
+    await a.request([usage('lock-retry')]);
+    writeFileSync(join(folder, 'records.lock'), 'held');
+    const beforeBusy = readFileSync(file, 'utf8');
+    await a.flush();
+    assert.equal(readFileSync(file, 'utf8'), beforeBusy, 'a live lock is never stolen');
+    assert.equal(readFileSync(join(folder, 'records.lock'), 'utf8'), 'held');
+    rmSync(join(folder, 'records.lock'));
+    await a.flush();
+    assert.ok(JSON.parse(readFileSync(file, 'utf8')).ledgers['lock-retry']);
+    await a.request([usage('dispose')]); await a.dispose();
+    assert.ok(JSON.parse(readFileSync(file, 'utf8')).ledgers.dispose, 'dispose flushes queued operations');
+    const unavailable = host(null); hosts.push(unavailable);
+    assert.deepEqual((await unavailable.request()).value, { status: 'unavailable' });
+    assert.deepEqual((await unavailable.request([run])).value, { status: 'unavailable' });
+    const writeFailure = host(); hosts.push(writeFailure);
+    await writeFailure.request([usage('write-failure')]);
+    makeDir(join(folder, 'records.json.tmp'));
+    await assert.rejects(writeFailure.flush());
+    assert.deepEqual((await writeFailure.request()).value, { status: 'failed' });
+    rmSync(join(folder, 'records.json.tmp'), { recursive: true });
+    await writeFailure.flush();
+    assert.equal((await writeFailure.request()).value.status, 'ready');
+    assert.ok(JSON.parse(readFileSync(file, 'utf8')).ledgers['write-failure']);
+    const badRoot = join(base, 'blocked', 'sessions'); writeFileSync(join(base, 'blocked'), 'not a folder');
+    const failed = host(badRoot); hosts.push(failed);
+    assert.deepEqual((await failed.request()).value, { status: 'failed' });
+    for (const raw of ['{bad', JSON.stringify({ ...emptyRecords(), billDays: { v: 1, currency: 'CNY', days: { wrong: {} } } })]) {
+      writeFileSync(file, raw);
+      const corrupted = host(); hosts.push(corrupted);
+      assert.equal((await corrupted.request()).value.status, 'ready');
+      assert.equal(corrupted.warnings.length, 1);
+      const saved = readdirSync(folder).filter((name) => name.startsWith('records.json.bad-'));
+      assert.ok(saved.some((name) => readFileSync(join(folder, name), 'utf8') === raw));
+      assert.equal((await corrupted.request()).value.status, 'ready');
+      assert.equal(corrupted.warnings.length, 1);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    const pendingNewer = host(); hosts.push(pendingNewer);
+    await pendingNewer.request([usage('pending-newer')]);
+    const newerText = JSON.stringify({ v: 2, future: 'keep' }); writeFileSync(file, newerText);
+    await assert.rejects(pendingNewer.flush(), /Newer records/);
+    assert.deepEqual((await pendingNewer.request()).value, { status: 'unavailable', reason: 'newer' });
+    assert.equal(readFileSync(file, 'utf8'), newerText);
+    const newer = host(); hosts.push(newer);
+    assert.deepEqual((await newer.request()).value, { status: 'unavailable', reason: 'newer' });
+    assert.deepEqual((await newer.request([run])).value, { status: 'unavailable', reason: 'newer' });
+    assert.equal(readFileSync(file, 'utf8'), newerText);
+    await pendingNewer.dispose();
+    disk = emptyRecords(); writeFileSync(file, JSON.stringify(disk));
+  } finally { for (const instance of hosts) await instance.dispose(); rmSync(base, { recursive: true, force: true }); }
+}
+// A late request carrying an older observation must not rewind the ledger.
+{
+  const at = new Date(2026, 9, 21, 10).getTime(), day = "2026-10-21", prices = { CNY: { hit: 0.04, miss: 2, out: 8 }, USD: null };
+  const usage = (miss, time) => ({ type: "usage", sessionId: "s", model: "deepseek-v4-flash", currency: "CNY", seen: { miss, hit: 0, out: 0 }, prices, peak: true, day, hour: 10, at: time });
+  let doc = applyRecordOp(emptyRecords(), usage(200, at + 2000), at).doc;
+  const late = applyRecordOp(doc, usage(150, at + 1000), at);
+  assert.strictEqual(late.doc, doc);
+  assert.equal(late.result.added, 0);
+  doc = applyRecordOp(doc, usage(250, at + 3000), at).doc;
+  assert.equal(doc.ledgers.s.seen.miss, 250);
+  assert.ok(Math.abs(doc.billDays.days[day].models["deepseek-v4-flash"].cost - 250 * 2 / 1e6) < 1e-12);
+}
+console.log('Record store tests passed (pure usage/run/alerts/import, max merge/idempotency/currency/pruning, interleaved writers/deduplication/dispose, stale lock, corruption/newer preservation, auth/rev/limits/unavailable/failures).');
+
+function localDay(time) {
+  const date = new Date(time);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
