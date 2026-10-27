@@ -38,10 +38,11 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 ## 安装
 
-你可以从 GitHub、发布包或本地目录安装。下面步骤中的 `<来源>`，请替换为以下任意一种：
+你可以从 npm、GitHub、发布包或本地目录安装。下面步骤中的 `<来源>`，请替换为以下任意一种：
 
+- **npm**（推荐）：`dsh-rhine-splash`。如需指定版本，在末尾加上 `@版本号`，例如 `dsh-rhine-splash@0.2.7`。连不上 npm 官方源时，Harness 会自动改用国内镜像 npmmirror。
 - **GitHub**：`github:Respawn-ID/dsh-rhine-splash`。如需指定版本，在末尾加上版本标签，例如 `github:Respawn-ID/dsh-rhine-splash#v0.2.7`。
-- **发布包**：从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写文件的绝对路径。无法访问 GitHub 时，建议使用这种方式。
+- **发布包**：从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写文件的绝对路径。npm 和 GitHub 都装不上时，可以使用这种方式。
 - **本地目录**：克隆本仓库后，填写仓库的绝对路径。适合需要修改代码的情况。
 
 本组合包没有依赖，也不运行安装脚本，因此安装时不会要求你确认版本豁免或允许构建脚本。
@@ -350,7 +351,7 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 
 **从 GitHub 安装失败**
 
-通常是因为网络无法访问 GitHub。请从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载发布包，改用文件路径安装。
+通常是因为网络无法访问 GitHub。请改用 npm 包名 `dsh-rhine-splash` 安装，或者从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载发布包，改用文件路径安装。
 
 **选了深色，重启后界面还是浅色**
 

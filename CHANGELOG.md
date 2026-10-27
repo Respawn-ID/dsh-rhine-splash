@@ -7,6 +7,7 @@
 ### 变更
 
 - README 主界面截图更新为 DeepSeek Harness 0.2.1-rc.3 上的当前样式。
+- 安装说明新增 npm 方式：添加插件时填写 `dsh-rhine-splash` 即可，连不上 npm 官方源时 Harness 会自动改用国内镜像 npmmirror。
 
 ### 修复
 
