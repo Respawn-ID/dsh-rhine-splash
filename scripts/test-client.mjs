@@ -2102,10 +2102,12 @@ await scenario({ apply: false }, async ({ internals: i, mount, render, advance }
     const report = i.weeklyReport({ log: { currency: "CNY", days: {} }, runs: { days: {} }, weekStart: "2020-12-28", now: Date.now() });
     const t = (key) => i.zh[key];
     assert.strictEqual(i.paintWeekly(report, { t, dark: false }), canvas);
-    assert.equal(canvas.width, 1080); assert.equal(canvas.height, 1720);
+    assert.equal(canvas.width, 1080); assert.equal(canvas.height, 1760);
     assert.equal(fills[0], "#f8f6f1");
     // An empty week draws the frame, title, empty line and footer, and no conversation text.
-    assert.ok(text.includes(i.zh.wkTitle) && text.includes(i.zh.wkEmpty) && text.includes(i.zh.wkPrivacy));
+    assert.ok(text.includes(i.zh.wkTitle) && text.includes(i.zh.wkEmpty) && text.includes(i.zh.wkStatsOnly));
+    // The footer names the plugin and how to install it, so a shared image leads back here.
+    assert.ok(text.includes("dsh-rhine-splash") && text.includes("github.com/Respawn-ID/dsh-rhine-splash") && text.includes(i.zh.wkShareName));
     const full = i.weeklyReport({ log: { currency: "CNY", days: { "2020-12-29": { models: { "deepseek-v4-flash": { cost: 1.5, miss: 10, hit: 30, out: 5 } }, sessions: { s1: 1.5 } } } },
       runs: { v: 1, days: { "2020-12-29": { runs: 2, ms: 90000, longest: 60000 } } }, weekStart: "2020-12-28", now: Date.now() });
     text.length = 0;
