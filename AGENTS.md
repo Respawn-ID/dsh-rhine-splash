@@ -10,7 +10,8 @@ A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in 
 | Display name | 莱茵生命主题 (en: Rhine Lab Theme) — what the Plugins page lists |
 | Plugin entry id | `rhine-splash` |
 | Version | see `package.json` |
-| Install source (remote) | `github:Respawn-ID/dsh-rhine-splash` (pin with `#vX.Y.Z`), or the absolute path of a release `.tgz` from https://github.com/Respawn-ID/dsh-rhine-splash/releases |
+| Install source (npm) | `dsh-rhine-splash` (pin with `@X.Y.Z`); dsh falls back to the npmmirror registry when the configured registry is unreachable |
+| Install source (GitHub) | `github:Respawn-ID/dsh-rhine-splash` (pin with `#vX.Y.Z`), or the absolute path of a release `.tgz` from https://github.com/Respawn-ID/dsh-rhine-splash/releases |
 | Install source (local) | absolute path of this repository root — the directory containing this file. Get it with `pwd`; it may contain spaces. Prefer this when you are working inside a clone. |
 | DSH peer dependencies | none → never request or grant a version exemption |
 | Install scripts | none → never pass `approvedBuilds` |
@@ -21,7 +22,7 @@ A DeepSeek Harness (dsh) **bundle** that plays a Rhine Lab style boot splash in 
 1. Call `plugin_manager` with `{ "action": "list_bundles" }`. Look for an entry named `dsh-rhine-splash`.
    - Present and enabled → already installed. Tell the user and stop.
    - Present but disabled → call `{ "action": "set_bundle", "target": "dsh-rhine-splash", "enabled": true }`, then go to step 3.
-2. Call `{ "action": "install_bundle", "target": "<source>" }`, where `<source>` is the absolute repository path when you are inside a clone, and otherwise `github:Respawn-ID/dsh-rhine-splash`. Pass paths exactly, spaces included, without quotes. The bundle is enabled by default. If GitHub is unreachable, ask the user to download the release `.tgz` and install from its path.
+2. Call `{ "action": "install_bundle", "target": "<source>" }`, where `<source>` is the absolute repository path when you are inside a clone, and otherwise `dsh-rhine-splash` (or `dsh-rhine-splash@X.Y.Z` when the user names a version). Pass paths exactly, spaces included, without quotes. The bundle is enabled by default. If no registry is reachable, retry with `github:Respawn-ID/dsh-rhine-splash`; if GitHub is unreachable too, ask the user to download the release `.tgz` and install from its path.
 3. Tell the user to fully quit DeepSeek Harness and reopen it to see the splash. On macOS that is ⌘Q; on Windows closing the window only hides it to the system tray, so quit from the app menu (退出) or the tray icon's menu (退出 DeepSeek Harness).
 
 Each call asks the user for approval; that is expected. If `plugin_manager` is not available in this session, do not edit profile files by hand. Tell the user to either switch the session to the **Creator** preset or install from the sidebar: **插件 → 添加插件**, paste the repository path, then **立即启用** and restart.
