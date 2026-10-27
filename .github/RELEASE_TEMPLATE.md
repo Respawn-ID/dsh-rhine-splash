@@ -28,11 +28,21 @@ Release 说明模板。新建 Release 时：
 
 ## 安装
 
-在 Harness 侧栏点击 **插件** > **添加插件**，输入 `dsh-rhine-splash@X.Y.Z`，安装后点击 **立即启用**，然后完全退出并重新打开 Harness。连不上 npm 官方源时，Harness 会自动改用国内镜像 npmmirror。
+在 Harness 侧栏点击 **插件** > **添加插件**，粘贴下面这行，安装后点击 **立即启用**，然后完全退出并重新打开 Harness：
 
-也可以输入 `github:Respawn-ID/dsh-rhine-splash#vX.Y.Z` 从 GitHub 安装。两者都装不上时，可以下载下方的 `dsh-rhine-splash-X.Y.Z.tgz`，添加插件时填写文件路径。
+```text
+dsh-rhine-splash@X.Y.Z
+```
 
-在网页版中安装时，先停止 `dsh web`，运行以下命令，然后重新启动 `dsh web`：
+连不上 npm 官方源时，Harness 会自动改用国内镜像 npmmirror。也可以粘贴下面这行，从 GitHub 安装：
+
+```text
+github:Respawn-ID/dsh-rhine-splash#vX.Y.Z
+```
+
+两者都装不上时，下载下方的 `dsh-rhine-splash-X.Y.Z.tgz`，添加插件时粘贴这个文件的完整路径。
+
+网页版：先停止 `dsh web`，运行下面的命令，再重新启动 `dsh web`：
 
 ```bash
 dsh plugin --profile web add dsh-rhine-splash@X.Y.Z

@@ -38,25 +38,43 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 ## 安装
 
-你可以从 npm、GitHub、发布包或本地目录安装。下面步骤中的 `<来源>`，请替换为以下任意一种：
+1. 在 Harness 侧栏点击 **插件**，然后点击 **添加插件**。
+2. 粘贴下面这行，点击 **安装**。安装完成后，点击 **立即启用**。
 
-- **npm**（推荐）：`dsh-rhine-splash`。如需指定版本，在末尾加上 `@版本号`，例如 `dsh-rhine-splash@0.2.7`。连不上 npm 官方源时，Harness 会自动改用国内镜像 npmmirror。
-- **GitHub**：`github:Respawn-ID/dsh-rhine-splash`。如需指定版本，在末尾加上版本标签，例如 `github:Respawn-ID/dsh-rhine-splash#v0.2.7`。
-- **发布包**：从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，填写文件的绝对路径。npm 和 GitHub 都装不上时，可以使用这种方式。
-- **本地目录**：克隆本仓库后，填写仓库的绝对路径。适合需要修改代码的情况。
+   ```text
+   dsh-rhine-splash
+   ```
 
-本组合包没有依赖，也不运行安装脚本，因此安装时不会要求你确认版本豁免或允许构建脚本。
+3. 完全退出 Harness，然后重新打开。
 
-下文说的「完全退出 Harness」：
+连不上 npm 官方源时，Harness 会自动改用国内镜像 npmmirror，不需要额外设置。
+
+「完全退出 Harness」是指：
 
 - **macOS**：按 <kbd>⌘</kbd> + <kbd>Q</kbd>。
 - **Windows**：关闭窗口只会把 Harness 缩到系统托盘，任务还在后台运行。请在 Harness 的应用菜单中选择「退出」，或在系统托盘中右键 Harness 图标，选择「退出 DeepSeek Harness」。
 
-### 在插件页安装
+本组合包没有依赖，也不运行安装脚本，因此安装时不会要求你确认版本豁免或允许构建脚本。
 
-1. 在 Harness 侧栏点击 **插件**，然后点击 **添加插件**。
-2. 输入 `<来源>`，点击 **安装**。安装完成后，点击 **立即启用**。
-3. 完全退出 Harness，然后重新打开。
+### 其他安装来源
+
+上面第 2 步也可以粘贴下面任意一行。
+
+安装指定版本，把 `0.2.7` 换成你要的版本号：
+
+```text
+dsh-rhine-splash@0.2.7
+```
+
+从 GitHub 安装：
+
+```text
+github:Respawn-ID/dsh-rhine-splash
+```
+
+npm 和 GitHub 都装不上时，从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，粘贴这个文件的完整路径，例如 `/Users/<用户名>/Downloads/dsh-rhine-splash-0.2.7.tgz`。
+
+要修改代码时，克隆本仓库，粘贴仓库文件夹的完整路径。
 
 ### 让 dsh agent 安装
 
@@ -68,11 +86,13 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 1. 如果终端里还没有 `dsh` 命令，先在 Harness 中安装：macOS 在菜单栏中选择 **DeepSeek Harness** > **管理 dsh 命令…**，Windows 在 Harness 的应用菜单中选择 **管理 dsh 命令…**，然后点击 **安装**。
 2. 完全退出 Harness。Harness 运行时会锁定配置，命令行无法写入。
-3. 运行以下命令。路径中有空格时，请保留引号：
+3. 运行以下命令：
 
    ```bash
-   dsh plugin --profile desktop add "<来源>"
+   dsh plugin --profile desktop add dsh-rhine-splash
    ```
+
+   要用其他来源，把最后的 `dsh-rhine-splash` 换成[其他安装来源](#其他安装来源)中的任意一种。路径中有空格时，请用引号括起来。
 
 4. 重新打开 Harness。
 
@@ -82,7 +102,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 2. 运行以下命令：
 
    ```bash
-   dsh plugin --profile web add "<来源>"
+   dsh plugin --profile web add dsh-rhine-splash
    ```
 
    dsh 会调用 pnpm 安装插件。如果提示找不到 pnpm，请先安装 pnpm。
@@ -97,7 +117,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 ### 更新
 
-Harness 目前不支持自动更新组合包。要升级到新版本，请先卸载旧版本，再安装新版本。如果是从本地目录安装的，修改代码后重启 Harness 即可生效。
+Harness 目前不支持自动更新组合包。要升级到新版本，请先卸载旧版本，再按上面的步骤重新安装；粘贴 `dsh-rhine-splash` 会装上最新版本。如果是从本地目录安装的，修改代码后重启 Harness 即可生效。
 
 各版本的变化请查看[更新日志](CHANGELOG.md)。
 
@@ -346,7 +366,7 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 在 macOS 上也可以直接使用完整路径：
 
 ```bash
-"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add "<来源>"
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add dsh-rhine-splash
 ```
 
 **从 GitHub 安装失败**
