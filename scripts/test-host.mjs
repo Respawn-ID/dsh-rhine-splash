@@ -6,8 +6,9 @@ import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync as makeDir, symlinkSync } from 'node:fs';
-import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, DESKTOP_APP_ID, deletionQueue, drainDeletions, forgetSession, isSessionDirInside, name, parseBalance, readConfig, resolveConfig, staleArchivedIds, toastPayload } from '../lib/index.js';
+import { ACCENTS, apply, buildAssetStyle, buildInjections, DEFAULTS, DESKTOP_APP_ID, deletionQueue, drainDeletions, forgetSession, isSessionDirInside, name, parseBalance, parseLatest, isNewer, readConfig, resolveConfig, staleArchivedIds, toastPayload } from '../lib/index.js';
 import { registerArchives } from '../lib/host/archives.js';
+import { registerUpdate } from '../lib/host/update.js';
 import { registerNotify, showWindowsToast } from '../lib/host/notify.js';
 
 assert.deepEqual(staleArchivedIds(['session-b', 'session-a'], new Set(), () => false),
@@ -252,7 +253,7 @@ assert.equal(DEFAULTS.logo, 'plate');
 assert.equal(DEFAULTS.accent, 'rhine');
 assert.equal(DEFAULTS.accentColor, '#e46f24');
 assert.equal(DEFAULTS.base, 'warm');
-for (const key of ['budgetDaily', 'budgetSession']) {
+for (const key of ['budgetDaily', 'budgetSession', 'balanceAlert']) {
   assert.equal(DEFAULTS[key], 0);
   for (const [value, expected] of [[0, 0], [12.34, 12.34], [12.345, 12.35], [100000, 100000]]) assert.equal(resolveConfig({ [key]: value })[key], expected);
   for (const value of [-1, NaN, Infinity, '12.34', 100000.01, null, {}, []]) assert.equal(resolveConfig({ [key]: value })[key], 0);
@@ -310,7 +311,7 @@ for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
 assert.equal(DEFAULTS.heroBackground, 'random');
 assert.equal(DEFAULTS.resumeEffect, 'random');
 assert.equal(DEFAULTS.resumeTrigger, 'hidden');
-assert.equal(DEFAULTS.costOpen, 'page');
+assert.equal(DEFAULTS.costOpen, 'popup');
 for (const key of ['notifyCurrent', 'notifyOthers', 'notifyAway', 'notifySystem', 'notifyToast', 'notifySound']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
@@ -322,6 +323,7 @@ for (const [key, choices] of [
   ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],
   ['resumeTrigger', ['hidden', 'away', 'always']],
   ['costOpen', ['page', 'popup']],
+  ['splashWhen', ['launch', 'daily', 'update']],
 ]) {
   for (const value of choices) {
     assert.equal(resolveConfig({ [key]: value })[key], value);
@@ -500,7 +502,7 @@ function globalsOf(script) {
     config: JSON.parse(script.slice(configStart, script.indexOf(';\n', configStart))),
   };
 }
-assert.deepEqual(globalsOf(rows[1].text), { brand: { mark: '', hero: '', name: '', marks: { plate: '', cell: '' }, heroes: { plate: '', cell: '' } }, config: unsafeConfig });
+assert.deepEqual(globalsOf(rows[1].text), { brand: { mark: '', hero: '', name: '', marks: { plate: '', cell: '' }, heroes: { plate: '', cell: '' } }, config: { ...unsafeConfig, version: '' } });
 assert.deepEqual(globalsOf(buildInjections(unsafeConfig, { ...fakeAssets, brand: unsafeBrand })[1].text).brand, unsafeBrand);
 assert.deepEqual(buildInjections(unsafeConfig, fakeAssets), rows);
 assert.deepEqual(buildInjections(unsafeConfig, { ...fakeAssets, images: '' }), rows);
@@ -546,6 +548,8 @@ assert.equal(table[0].text, '/* existing theme bootstrap */');
 assert.equal(table.at(-2).kind, 'style');
 assert.equal(table.at(-1).kind, 'script');
 assert.equal(globalsOf(table.at(-1).text).config.title, 'Host test');
+assert.equal(globalsOf(table.at(-1).text).config.version, JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+assert.equal(globalsOf(buildInjections(DEFAULTS, { ...fakeAssets, version: '0.2.8' })[1].text).config.version, '0.2.8');
 liveEnabled = false;
 const updated = [];
 real.handlers[0](updated);
@@ -661,4 +665,77 @@ try {
   rmSync(fixture, { recursive: true, force: true });
 }
 
-console.log('Host tests passed (accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');
+// New settings reject invalid types and fractional hours/seconds.
+assert.equal(DEFAULTS.splashWhen, 'launch');
+for (const [key, fallback, max] of [['notifyMinRun', 10, 600], ['quietFrom', 22, 23], ['quietTo', 8, 23]]) {
+  assert.equal(DEFAULTS[key], fallback);
+  for (const value of [0, 1, max]) assert.equal(resolveConfig({ [key]: value })[key], value);
+  for (const value of [-1, max + 1, 1.5, NaN, Infinity, '1', null]) assert.equal(resolveConfig({ [key]: value })[key], fallback);
+}
+for (const [key, fallback] of [['quietHours', false], ['updateCheck', true]]) {
+  assert.equal(DEFAULTS[key], fallback);
+  for (const value of [true, false]) assert.equal(resolveConfig({ [key]: value })[key], value);
+  for (const value of [null, 0, 'true', {}]) assert.equal(resolveConfig({ [key]: value })[key], fallback);
+}
+assert.equal(Object.hasOwn(resolveConfig({ version: '9.9.9' }), 'version'), false);
+for (const version of ['0.2.8', '1.10.0', '12.34.56']) assert.equal(parseLatest({ version }), version);
+for (const value of [null, {}, { version: 1 }, { version: 'v0.2.8' }, { version: '0.2' }, { version: '0.2.8-beta' }, { version: ' 0.2.8' }]) assert.equal(parseLatest(value), null);
+for (const [latest, current, newer] of [['0.2.8', '0.2.7', true], ['0.10.0', '0.9.9', true], ['1.0.0', '0.99.99', true], ['0.2.7', '0.2.7', false], ['0.2.6', '0.2.7', false], ['0.2.8', '', false], ['bad', '0.2.7', false], ['0.2.8', 'v0.2.7', false]]) assert.equal(isNewer(latest, current), newer);
+{
+  const savedFetch = globalThis.fetch, savedNow = Date.now;
+  let now = 100000000, calls = [];
+  Date.now = () => now;
+  const route = () => {
+    let handler;
+    registerUpdate({ get: () => undefined }, { version: '0.2.7' })({ effect: (fn) => fn(), webServer: { register(entry) { assert.equal(entry.path, '/rhine-splash/update'); handler = entry.handler; return () => {}; } } });
+    return async (headers = { 'x-rhine-splash': '1' }, method = 'GET') => {
+      const res = { statusCode: 200, setHeader() {}, end(text) { this.body = text; } };
+      await handler({ method, headers, socket: { remoteAddress: '127.0.0.1' } }, res);
+      return { status: res.statusCode, value: res.body ? JSON.parse(res.body) : undefined };
+    };
+  };
+  try {
+    globalThis.fetch = async (url, options) => {
+      calls.push(url);
+      assert.equal(options.method, 'GET');
+      assert.equal(options.redirect, 'error');
+      assert.equal(options.headers.accept, 'application/json');
+      assert.ok(options.signal instanceof AbortSignal);
+      return { ok: true, json: async () => ({ version: '0.2.8' }) };
+    };
+    const request = route();
+    assert.deepEqual(await request({}), { status: 403, value: undefined });
+    assert.deepEqual(await request({ 'x-rhine-splash': '1' }, 'POST'), { status: 405, value: undefined });
+    assert.equal(calls.length, 0);
+    const ready = { status: 200, value: { status: 'ready', current: '0.2.7', latest: '0.2.8', newer: true } };
+    assert.deepEqual(await request(), ready);
+    assert.deepEqual(await request(), ready);
+    assert.deepEqual(calls, ['https://registry.npmjs.org/dsh-rhine-splash/latest']);
+    now += 21600000;
+    await request();
+    assert.equal(calls.length, 2);
+    calls = [];
+    globalThis.fetch = async (url) => { calls.push(url); if (url.includes('npmjs')) throw new Error('offline'); return { ok: true, json: async () => ({ version: '0.2.8' }) }; };
+    assert.deepEqual(await route()(), ready);
+    assert.deepEqual(calls, ['https://registry.npmjs.org/dsh-rhine-splash/latest', 'https://registry.npmmirror.com/dsh-rhine-splash/latest']);
+    calls = [];
+    globalThis.fetch = async (url) => { calls.push(url); return { ok: true, json: async () => ({ version: 'invalid' }) }; };
+    const failed = route();
+    assert.deepEqual(await failed(), { status: 200, value: { status: 'failed', current: '0.2.7' } });
+    await failed();
+    assert.equal(calls.length, 2);
+    now += 600000;
+    await failed();
+    assert.equal(calls.length, 4);
+    calls = [];
+    let release;
+    globalThis.fetch = (url) => { calls.push(url); return new Promise((resolve) => { release = () => resolve({ ok: true, json: async () => ({ version: '0.2.8' }) }); }); };
+    const shared = route(), first = shared(), second = shared();
+    assert.equal(calls.length, 1);
+    release();
+    assert.deepEqual(await first, ready);
+    assert.deepEqual(await second, ready);
+  } finally { globalThis.fetch = savedFetch; Date.now = savedNow; }
+}
+
+console.log('Host tests passed (update route/cache/fallback/auth, new settings/version, accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');

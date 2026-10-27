@@ -7,7 +7,7 @@
   <style>
     /* Stand-ins for the app's tokens. The page itself is the real CostPage
        from lib/client.js, rendered with React and 62 days of sample data.
-       URL: ?range=1|7|30|62  ?empty  ?nohours  ?nokey  ?nobudget  ?table
+       URL: ?range=1|7|30|62  ?empty  ?nohours  ?nokey  ?nobudget  ?low  ?table
        ?pop renders the real billing card with costOpen "popup" and opens its
        panel (its chart opens the page)  ?side=0 hides the sidebar
        ?shot hides the controls  #dark */
@@ -108,7 +108,7 @@
     window.fetch = (url, init) => String(url).includes('/rhine-splash/balance')
       ? Promise.resolve({ ok: true, json: async () => params.has('nokey') ? { status: 'no-key' } : { status: 'ready', available: true, balances: [{ currency: 'CNY', total: '86.20', granted: '10.00', toppedUp: '76.20' }] } })
       : realFetch(url, init)
-    globalThis.__RHINE_SPLASH__ = { costOpen: params.has('pop') ? 'popup' : 'page', billing: true, uiTheme: true, brand: true, accent: 'rhine', base: 'warm', budgetDaily: params.has('nobudget') ? 0 : 6, budgetSession: params.has('nobudget') ? 0 : 3, todoCenter: true, rowStatus: true }
+    globalThis.__RHINE_SPLASH__ = { costOpen: params.has('pop') ? 'popup' : 'page', billing: true, uiTheme: true, brand: true, accent: 'rhine', base: 'warm', budgetDaily: params.has('nobudget') ? 0 : 6, budgetSession: params.has('nobudget') ? 0 : 3, balanceAlert: params.has('low') ? 100 : 0, todoCenter: true, rowStatus: true }
     globalThis.__RHINE_BRAND__ = {}
 
     // Load lib/client.js through a minimal module loader.
@@ -126,6 +126,7 @@
       new Function(src)()
       const { internals } = factory((name) => modules[name])
       const t = (k) => internals.zh[k] ?? k
+      internals.balance.start()
       const titles = Object.fromEntries(convs.filter(([id]) => id !== 'gone').map(([id, title, ws]) => [id, { title, cwd: '/Users/me/' + ws, updatedAt: ledgers[id]?.at ?? Date.now() }]))
       const spaces = ['Deepseek Theme', 'default-workspace', 'data-lab'].map((title, i) => ({ workspaceId: 'w' + i, title, path: '/Users/me/' + title, sessionIds: convs.filter((c) => c[2] === title).map((c) => c[0]) }))
       const props = {
@@ -153,7 +154,7 @@
 
     if (!params.has('shot')) {
       const ctl = document.getElementById('ctl')
-      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['小卡片', '?pop'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
+      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['小卡片', '?pop'], ['余额低', '?pop&low'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
         const a = document.createElement('a'); a.textContent = label; a.href = href; ctl.append(a)
         if (label === '深色') a.addEventListener('click', () => setTimeout(() => location.reload()))
       }
