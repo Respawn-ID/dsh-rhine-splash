@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { DEFAULTS } from "../lib/index.js";
+import { emptyRecords, applyRecordOp, DEFAULTS } from "../lib/index.js";
 
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 const features = ["live", "notify", "todo", "billing", "cost", "effort", "archives", "brand", "settings", "command"];
@@ -104,7 +104,7 @@ async function scenario({ config = {}, change = noop, apply = true, stored = {},
   const notifications = [];
   const memory = new Map(Object.entries(stored));
   const globals = {
-    window: globalThis, focus: noop,
+    window: globalThis, focus: noop, location: globalThis.location || { origin: "http://localhost:4173" },
     document: { ...element(), createElement: element, head: element(), body: element(), documentElement: element(), visibilityState: "visible", hasFocus: () => true, getElementById: () => null },
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     requestAnimationFrame: (fn) => setTimer(fn, 16), cancelAnimationFrame: (id) => timers.delete(id),
@@ -2033,7 +2033,7 @@ await scenario({ config: { updateCheck: false }, change: (services) => {
   const page = slots.find(({ options }) => options.name === "main");
   i.weeklyState.set(null); dialog.render();
   const pageNode = render(page.Component({}).props.children.type, { ...page.options.inject(), t: props.t });
-  nodesOf(pageNode).find((item) => item.props?.className === "rl-cp-btn rl-cp-weekly").props.onClick();
+  nodesOf(pageNode).find((item) => item.props?.className === "rl-cp-weekly").props.onClick();
   assert.equal(i.weeklyState.getSnapshot().weekStart, last);
   node = dialog.render(); nodes = nodesOf(node);
   nodes.find((item) => item.props.children === i.zh.wkCost).props.onClick();
@@ -2090,7 +2090,7 @@ await scenario({ apply: false }, async ({ internals: i, mount, render, advance }
   const originalCreate = document.createElement, originalURL = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
   const writes = [], clicks = [], revoked = [], text = [], fills = [], blob = {};
   const context = { fillRect: () => fills.push(context.fillStyle), fillText: (value) => text.push(value), measureText: (value) => ({ width: String(value).length * 10 }),
-    beginPath: noop, moveTo: noop, lineTo: noop, fill: noop };
+    beginPath: noop, moveTo: noop, lineTo: noop, fill: noop, save: noop, restore: noop, translate: noop, rotate: noop, strokeRect: noop };
   let output = blob, denied = false;
   const canvas = { getContext: () => context, toBlob: (callback, mime) => { assert.equal(mime, "image/png"); callback(output); } };
   try {
@@ -2102,7 +2102,7 @@ await scenario({ apply: false }, async ({ internals: i, mount, render, advance }
     const report = i.weeklyReport({ log: { currency: "CNY", days: {} }, runs: { days: {} }, weekStart: "2020-12-28", now: Date.now() });
     const t = (key) => i.zh[key];
     assert.strictEqual(i.paintWeekly(report, { t, dark: false }), canvas);
-    assert.equal(canvas.width, 1080); assert.equal(canvas.height, 1350);
+    assert.equal(canvas.width, 1080); assert.equal(canvas.height, 1720);
     assert.equal(fills[0], "#f8f6f1");
     // An empty week draws the frame, title, empty line and footer, and no conversation text.
     assert.ok(text.includes(i.zh.wkTitle) && text.includes(i.zh.wkEmpty) && text.includes(i.zh.wkPrivacy));
@@ -2199,3 +2199,333 @@ await scenario({ config: { weeklyReport: false, updateCheck: false } }, ({ memor
 }
 
 console.log("Client tests passed (weekly run log/tracking/calendar/report/auto-open/dialog/privacy, new settings/quiet/min-run, balance alerts/low DOM, updates/cache/banner/copy, settings section, welcome/update lifecycle, splash gates/replay, locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost report/hour/peak/page, unarchive, shared row-status timing, money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");
+
+// The local store adapter degrades without changing synchronous browser accounting.
+const settleRecords = async () => { for (let n = 0; n < 30; n++) await Promise.resolve(); };
+for (const failure of ['404', 'network', 'unavailable', 'failed']) {
+  await scenario({ fetcher: async (url) => {
+    if (!url.startsWith('/rhine-splash/records')) return { ok: true, json: async () => ({ status: 'no-key' }) };
+    if (failure === 'network') throw new Error('offline');
+    return { ok: failure !== '404', json: async () => ({ status: failure }) };
+  } }, async ({ internals: i, memory, warnings }) => {
+    await settleRecords();
+    assert.deepEqual(i.records.getSnapshot(), { mode: 'browser' });
+    const before = i.usageTick.getSnapshot(), ledger = i.recordUsage('fallback', { uncachedInputTokens: 1000000 }, 'deepseek-flash', 'CNY');
+    assert.ok(ledger.cost > 0);
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:bill:fallback')), ledger);
+    assert.ok(i.readDayLog().days[i.dayKey(Date.now())]);
+    assert.ok(i.usageTick.getSnapshot() > before);
+    assert.equal(warnings.length, 0, 'initial fallback is silent');
+  });
+}
+
+// Real pure host operations back the fake transport, so client and host semantics agree.
+{
+  const now = Date.now(), day = localDayClient(now), requests = [], seenOps = [];
+  let doc = emptyRecords(), networkFailure = false, importCount = 0;
+  const response = (value) => ({ ok: true, json: async () => structuredClone(value) });
+  const fetcher = async (url, init) => {
+    if (!url.startsWith('/rhine-splash/records')) return response({ status: 'no-key' });
+    requests.push({ url, init });
+    assert.equal(init.headers['x-rhine-splash'], '1');
+    if (networkFailure && init.method === 'POST') throw new Error('offline');
+    if (init.method === 'POST') {
+      const { ops } = JSON.parse(init.body); seenOps.push(...ops);
+      importCount += ops.filter((op) => op.type === 'import').length;
+      const results = ops.map((op) => { const result = applyRecordOp(doc, op); doc = result.doc; return result.result; });
+      doc.rev++;
+      return response({ status: 'ready', rev: doc.rev, results });
+    }
+    const query = new URL(url, 'http://localhost').searchParams;
+    const rev = query.has('rev') ? Number(query.get('rev')) : -1;
+    return response(rev === doc.rev ? { status: 'ready', rev, unchanged: true }
+      : { status: 'ready', rev: doc.rev, file: '~/.dsh/rhine-splash/records.json', doc });
+  };
+  const originalLedger = { seen: { miss: 100, hit: 0, out: 0 }, cost: 3, currency: 'CNY', model: 'legacy', at: now };
+  const originalDays = { v: 1, currency: 'CNY', days: { [day]: { models: { legacy: { cost: 3, miss: 100, hit: 0, out: 0 } }, sessions: { legacy: 3 } } } };
+  const originalRuns = { v: 1, days: { [day]: { runs: 1, ms: 2000, longest: 2000 } } };
+  const originalBudget = { day, daily: [80], ids: {} }, originalBalance = { limit: 5, fired: true };
+  const stored = { 'rhine-splash:bill:legacy': JSON.stringify(originalLedger), 'rhine-splash:bill-days': JSON.stringify(originalDays),
+    'rhine-splash:run-days': JSON.stringify(originalRuns), 'rhine-splash:budget-alerts': JSON.stringify(originalBudget),
+    'rhine-splash:balance-alert': JSON.stringify(originalBalance), 'rhine-splash:cost-range': '30' };
+  await scenario({ stored, fetcher }, async ({ internals: i, memory, slots, render, advance, windowEvents, warnings }) => {
+    await settleRecords();
+    assert.equal(i.records.getSnapshot().mode, 'file');
+    assert.equal(importCount, 1);
+    assert.equal(seenOps[0].origin, 'http://localhost:4173');
+    assert.deepEqual(seenOps[0].ledgers.legacy, originalLedger);
+    assert.deepEqual(seenOps[0].billDays, originalDays);
+    assert.deepEqual(seenOps[0].runDays, originalRuns);
+    assert.deepEqual(seenOps[0].alerts, { budget: originalBudget, balance: originalBalance });
+    assert.deepEqual(i.readDayLog(), doc.billDays);
+    assert.deepEqual(i.readRunLog(), doc.runDays);
+    assert.deepEqual(i.readLedger('legacy'), originalLedger);
+    assert.equal(memory.get('rhine-splash:records-imported'), '1');
+    assert.equal(memory.get('rhine-splash:cost-range'), '30');
+    const injected = slots.find(({ options }) => options.id === 'rhine-splash').options.inject();
+    assert.strictEqual(injected.hooks.rhineRecords, i.records);
+    const props = { ...injected, t: (key) => i.zh[key], useRhineSplash: () => injected.hooks.rhineSplash.getSnapshot(), useRhineRecords: () => i.records.getSnapshot() };
+    const text = (tree) => JSON.stringify(tree);
+    assert.ok(text(render(i.Card, props)).includes('本机文件 ~/.dsh/rhine-splash/records.json'));
+    assert.ok(text(render(i.Card, { ...props, useRhineRecords: () => ({ mode: 'browser' }) })).includes('浏览器存储'));
+    assert.ok(text(render(i.Card, { ...props, useRhineRecords: undefined })).includes('浏览器存储'));
+    const count = seenOps.length;
+    const ledger = i.recordUsage('new', { uncachedInputTokens: 1000000, cacheReadTokens: 1000, outputTokens: 100 }, 'deepseek-flash', 'CNY');
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:bill:new')), ledger, 'optimistic mirror is synchronous');
+    i.writeRunLog(i.addRun(i.readRunLog(), { day, ms: 3000 }), { sessionId: 'new', day, ms: 3000, endedAt: now });
+    i.budgetThresholds({ now, sessionId: 'new', daily: 100, session: 100, budgetDaily: 10, budgetSession: 10 });
+    i.records.queue({ type: 'alerts', balance: { limit: 4, fired: false } });
+    assert.equal(seenOps.length, count, 'writes are batched');
+    advance(499); await settleRecords(); assert.equal(seenOps.length, count);
+    advance(1); await settleRecords();
+    const batch = seenOps.slice(count), op = batch.find((row) => row.type === 'usage');
+    assert.deepEqual(op.seen, { miss: 1000000, hit: 1000, out: 100 });
+    assert.deepEqual(op.prices, { CNY: i.priceOf('deepseek-flash', 'CNY'), USD: i.priceOf('deepseek-flash', 'USD') });
+    assert.equal(op.day, day); assert.equal(op.hour, new Date(op.at).getHours()); assert.equal(typeof op.peak, 'boolean');
+    assert.deepEqual(batch.find((row) => row.type === 'run'), { type: 'run', sessionId: 'new', day, ms: 3000, endedAt: now });
+    assert.ok(batch.some((row) => row.type === 'alerts' && row.budget.ids.new.levels.includes(100)));
+    assert.ok(batch.some((row) => row.type === 'alerts' && row.balance?.limit === 4));
+    assert.deepEqual(i.readLedger('new'), doc.ledgers.new);
+    assert.deepEqual(i.readDayLog(), doc.billDays);
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:bill-days')), doc.billDays);
+    const remote = { type: 'usage', sessionId: 'elsewhere', model: 'deepseek-flash', currency: 'CNY', seen: { miss: 3000, hit: 0, out: 0 },
+      prices: op.prices, peak: false, day, hour: 23, at: now + 1 };
+    doc = applyRecordOp(doc, remote).doc; doc.rev++;
+    advance(60000); await settleRecords();
+    assert.deepEqual(i.readLedger('elsewhere'), doc.ledgers.elsewhere, 'polling imports another window');
+    assert.deepEqual(i.readDayLog(), doc.billDays);
+    const requestsBeforeFocus = requests.length;
+    windowEvents.dispatch('focus'); await settleRecords();
+    assert.ok(requests.length > requestsBeforeFocus);
+    assert.ok(requests.at(-1).url.includes('?rev='));
+    networkFailure = true;
+    i.recordUsage('failed-batch', { uncachedInputTokens: 4000 }, 'deepseek-flash', 'CNY');
+    advance(500); await settleRecords();
+    assert.equal(i.records.getSnapshot().mode, 'file');
+    advance(4999); await settleRecords(); assert.equal(i.records.getSnapshot().mode, 'file');
+    advance(1); await settleRecords();
+    assert.equal(i.records.getSnapshot().mode, 'browser');
+    assert.ok(warnings.some((args) => args.join(' ').includes('browser storage')));
+    assert.ok(JSON.parse(memory.get('rhine-splash:bill:failed-batch')).cost > 0);
+  });
+  networkFailure = false;
+  await scenario({ fetcher, stored: { 'rhine-splash:records-imported': '1' } }, async ({ internals: i, memory }) => {
+    await settleRecords();
+    assert.equal(importCount, 1, 'origin marker prevents a second import');
+    assert.equal(i.records.getSnapshot().mode, 'file');
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:budget-alerts')), doc.alerts.budget);
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:balance-alert')), doc.alerts.balance);
+  });
+}
+
+// Weekly additions are data only, with ordered badges and localized explanations.
+await scenario({ apply: false }, ({ internals: i }) => {
+  const now = new Date(2026, 9, 25, 12), start = '2026-10-19', runs = { v: 1, days: {} };
+  const row = (cost, extra = {}, tokens = { miss: 100, hit: 0, out: 10 }) => ({ models: { 'deepseek-flash': { cost, ...tokens } }, sessions: { a: cost }, ...extra });
+  const report = (days, runDays = {}, at = now) => i.weeklyReport({ log: { v: 1, currency: 'CNY', days }, runs: { ...runs, days: runDays }, weekStart: start, now: at });
+  const blank = report({});
+  for (const key of ['hours', 'nightShare', 'weekendShare', 'topDay', 'topConversation', 'offPeakSaved', 'average4', 'vsAverage', 'badge']) assert.equal(blank[key], null, key);
+  for (const key of ['streak', 'tokens', 'cacheSaved', 'books']) assert.equal(blank[key], 0, key);
+  assert.deepEqual(i.weeklyBadgeText(blank, (key) => i.zh[key]), { name: '', reason: '' });
+  const hours = Array(24).fill(0); hours[23] = 1; hours[5] = 1; hours[6] = 2;
+  const data = {
+    '2026-09-14': row(1000), // outside previous four calendar weeks
+    '2026-09-28': row(2), '2026-10-05': row(0), '2026-10-12': row(4),
+    '2026-10-18': row(1), '2026-10-19': row(4, { hours, peak: 2, offPeak: 2 }, { miss: 1000000, hit: 2000000, out: 1000000 }),
+    '2026-10-20': row(2, { sessions: { b: 2 } }), '2026-10-25': row(1),
+  };
+  const full = report(data);
+  assert.deepEqual(full.hours, hours);
+  assert.equal(full.nightShare, 0.5);
+  assert.equal(full.weekendShare, 1 / 7);
+  assert.deepEqual(full.topDay, { day: '2026-10-19', index: 0, cost: 4 });
+  assert.deepEqual(full.topConversation, { cost: 5 });
+  assert.equal(full.streak, 1);
+  assert.equal(full.tokens, 4000220);
+  assert.equal(full.books, Math.round(full.tokens * 1.5 / 200000));
+  assert.equal(full.offPeakSaved, 2);
+  assert.equal(full.average4, 7 / 3, 'empty recorded weeks count, missing weeks do not');
+  assert.equal(full.vsAverage, (7 - 7 / 3) / (7 / 3));
+  const cost = i.costReport({ log: { v: 1, currency: 'CNY', days: data }, now, range: 7, ledgers: () => null });
+  assert.equal(full.cacheSaved, cost.cacheSaved);
+  assert.deepEqual(full.badge, { key: 'night', values: { share: 0.5 } });
+  assert.deepEqual(i.weeklyBadgeText(full, (key) => i.zh[key]), { name: '夜间观测员', reason: '50% 的花费发生在 22 点到 6 点' });
+  assert.equal(report(data, {}, new Date(2026, 9, 20)).streak, 3, 'current streak crosses prior week');
+  assert.equal(report({ '2026-10-19': row(1) }, {}, new Date(2026, 9, 27)).streak, 0, 'past week streak ends Sunday');
+  assert.equal(report({ '2026-10-12': row(0), '2026-10-19': row(1) }).vsAverage, null);
+  const marathon = { '2026-10-19': { runs: 1, ms: 1800000, longest: 1800000 } };
+  const allWeek = Object.fromEntries(Array.from({ length: 7 }, (_, n) => [`2026-10-${19 + n}`, row(1)]));
+  const cases = [
+    ['night', { ...allWeek, '2026-10-19': row(10, { hours }) }, marathon],
+    ['marathon', allWeek, marathon],
+    ['allWeek', allWeek, {}],
+    ['cache', { '2026-10-19': row(1, { peak: 0, offPeak: 1 }, { hit: 900, miss: 100, out: 0 }) }, {}],
+    ['offPeak', { '2026-10-25': row(2, { peak: 1, offPeak: 1 }) }, {}],
+    ['weekend', { '2026-10-12': row(1), '2026-10-25': row(2) }, {}],
+    ['surge', { '2026-10-12': row(2), '2026-10-19': row(3) }, {}],
+    ['calm', { '2026-10-12': row(10), '2026-10-19': row(7) }, {}],
+    ['steady', { '2026-10-19': row(1) }, {}],
+  ];
+  for (const [key, days, recorded] of cases) {
+    const value = report(days, recorded);
+    assert.equal(value.badge.key, key);
+    for (const locale of [i.zh, i.en]) {
+      const text = i.weeklyBadgeText(value, (name) => locale[name]);
+      assert.equal(text.name, locale['wb_' + key]); assert.ok(text.reason && !text.reason.includes('{'));
+    }
+  }
+  assert.deepEqual(report({}, marathon).badge, { key: 'marathon', values: { ms: 1800000 } });
+  assert.equal(report({ '2026-10-19': row(1), '2026-10-20': row(1) }, {}, new Date(2026, 9, 20)).badge.key, 'steady');
+  assert.equal(report({ '2026-10-19': row(1), '2026-10-20': row(1), '2026-10-21': row(1) }, {}, new Date(2026, 9, 21)).badge.key, 'allWeek');
+  assert.equal(report(allWeek, {}, new Date(2026, 9, 27)).badge.key, 'allWeek');
+  assert.equal(i.weeklyBadgeText(report({}, marathon), (key) => i.zh[key]).reason, '最长一次运行 30 分钟');
+  assert.equal(i.weeklyBadgeText(report({ '2026-10-12': row(10), '2026-10-19': row(7) }), (key) => i.zh[key]).reason, '花费比前一周少 30%');
+  assert.equal(i.weeklyBadgeText(report({ '2026-10-12': row(2), '2026-10-19': row(3) }), (key) => i.en[key]).reason, 'Spending rose 50% from last week');
+});
+console.log('Record adapter and weekly figure tests passed (browser fallback, file cache/mirrors/import-once, batched payloads/replies/retry/fallback, polling/focus, settings row, every weekly field and ordered badge/localization).');
+function localDayClient(time) {
+  const date = new Date(time);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+// A failed import restores the browser copy rather than losing it to the first GET.
+{
+  const day = localDayClient(Date.now()), ledger = { seen: { miss: 2, hit: 0, out: 0 }, cost: 7, currency: 'CNY' };
+  const stored = { 'rhine-splash:bill:legacy': JSON.stringify(ledger), 'rhine-splash:bill:broken': '{', 'rhine-splash:bill:later': JSON.stringify(ledger) };
+  await scenario({ stored, fetcher: async (url, init) => {
+    if (!url.startsWith('/rhine-splash/records')) return { ok: true, json: async () => ({ status: 'no-key' }) };
+    if (init.method === 'POST') {
+      const op = JSON.parse(init.body).ops[0];
+      assert.ok(op.ledgers.legacy && op.ledgers.later, 'a corrupt key must not hide later ledgers');
+      throw new Error('offline during import');
+    }
+    return { ok: true, json: async () => ({ status: 'ready', rev: 0, file: '/test', doc: emptyRecords() }) };
+  } }, async ({ internals: i, memory }) => {
+    await settleRecords();
+    assert.equal(i.records.getSnapshot().mode, 'browser');
+    assert.deepEqual(i.readLedger('legacy'), ledger);
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:bill:later')), ledger);
+    assert.equal(memory.has('rhine-splash:records-imported'), false);
+    assert.equal(i.readDayLog().days[day], undefined);
+  });
+}
+
+// Observations made during import are rebased over the merged document.
+{
+  let releaseImport, doc = emptyRecords();
+  const day = localDayClient(Date.now()), row = { models: { 'deepseek-flash': { cost: 2, miss: 1000000, hit: 0, out: 0 } }, sessions: { legacy: 2 } };
+  const stored = { 'rhine-splash:bill-days': JSON.stringify({ v: 1, currency: 'CNY', days: { [day]: row } }) };
+  const fetcher = async (url, init) => {
+    if (!url.startsWith('/rhine-splash/records')) return { ok: true, json: async () => ({ status: 'no-key' }) };
+    let value;
+    if (init.method === 'POST') {
+      const { ops } = JSON.parse(init.body);
+      if (ops[0].type === 'import') await new Promise((resolve) => { releaseImport = resolve; });
+      const results = ops.map((op) => { const applied = applyRecordOp(doc, op); doc = applied.doc; return applied.result; });
+      doc.rev++; value = { status: 'ready', rev: doc.rev, results };
+    } else value = { status: 'ready', rev: doc.rev, file: '/test', doc };
+    return { ok: true, json: async () => structuredClone(value) };
+  };
+  await scenario({ stored, fetcher }, async ({ internals: i, advance, memory }) => {
+    await settleRecords(); assert.equal(typeof releaseImport, 'function');
+    assert.equal(i.records.getSnapshot().mode, 'file');
+    assert.equal(JSON.parse(memory.get('rhine-splash:bill-days')).days[day].sessions.legacy, 2, 'the browser copy stays intact until the import lands');
+    const observed = i.recordUsage('new', { uncachedInputTokens: 1000000 }, 'deepseek-flash', 'CNY');
+    i.writeRunLog(i.addRun(i.readRunLog(), { day, ms: 3000 }), { sessionId: 'new', day, ms: 3000, endedAt: Date.now() });
+    releaseImport(); await settleRecords();
+    assert.equal(i.readDayLog().days[day].sessions.legacy, 2);
+    assert.equal(i.readDayLog().days[day].sessions.new, observed.cost);
+    assert.equal(i.readRunLog().days[day].runs, 1);
+    advance(500); await settleRecords();
+    assert.deepEqual(i.readDayLog(), doc.billDays);
+    assert.deepEqual(i.readLedger('new'), doc.ledgers.new);
+    assert.deepEqual(JSON.parse(memory.get('rhine-splash:run-days')), doc.runDays);
+  });
+}
+
+// Batches never overlap, preserve newer observations, and retry only once.
+{
+  let doc = emptyRecords(), release, deferred = false, calls = 0, failOnce = false;
+  const fetcher = async (url, init) => {
+    if (!url.startsWith('/rhine-splash/records')) return { ok: true, json: async () => ({ status: 'no-key' }) };
+    if (init.method !== 'POST') return { ok: true, json: async () => ({ status: 'ready', rev: doc.rev, file: '/test', doc: structuredClone(doc) }) };
+    const { ops } = JSON.parse(init.body); assert.ok(ops.length <= 200); calls++;
+    if (failOnce) { failOnce = false; throw new Error('one failure'); }
+    const results = ops.map((op) => { const result = applyRecordOp(doc, op); doc = result.doc; return result.result; });
+    doc.rev++;
+    if (deferred) { deferred = false; await new Promise((resolve) => { release = resolve; }); }
+    return { ok: true, json: async () => ({ status: 'ready', rev: doc.rev, results }) };
+  };
+  await scenario({ stored: { 'rhine-splash:records-imported': '1' }, fetcher }, async ({ internals: i, advance }) => {
+    await settleRecords();
+    deferred = true;
+    i.recordUsage('racing', { uncachedInputTokens: 1000 }, 'deepseek-flash', 'CNY');
+    advance(500); await settleRecords();
+    const newer = i.recordUsage('racing', { uncachedInputTokens: 3000 }, 'deepseek-flash', 'CNY');
+    advance(1000); await settleRecords(); assert.equal(calls, 1);
+    release(); await settleRecords();
+    assert.equal(i.readLedger('racing').cost, newer.cost, 'older replies must not roll back a newer observation');
+    advance(500); await settleRecords();
+    assert.equal(i.readLedger('racing').cost, doc.ledgers.racing.cost);
+    failOnce = true;
+    i.recordUsage('retry', { uncachedInputTokens: 10 }, 'deepseek-flash', 'CNY');
+    advance(500); await settleRecords(); const failedCalls = calls;
+    advance(5000); await settleRecords();
+    assert.equal(calls, failedCalls + 1);
+    assert.equal(i.records.getSnapshot().mode, 'file');
+    for (let n = 0; n < 201; n++) i.records.queue({ type: 'alerts', balance: { limit: n, fired: false } });
+    advance(500); await settleRecords(); const batched = calls;
+    advance(499); await settleRecords(); assert.equal(calls, batched);
+    advance(1); await settleRecords(); assert.equal(calls, batched + 1);
+    assert.equal(doc.alerts.balance.limit, 200);
+  });
+}
+console.log('Record adapter race tests passed (failed import recovery, malformed legacy keys, import rebasing, in-flight observations, successful retry, 200-op batching).');
+
+// The host and browser price the same cumulative observations identically.
+await scenario({ apply: false }, ({ internals: i }) => {
+  let doc = emptyRecords();
+  const at = Date.now(), day = i.dayKey(at), hour = new Date(at).getHours();
+  for (const [sessionId, model, currency, seen] of [
+    ['a', 'deepseek-flash', 'CNY', { miss: 1000000, hit: 3000000, out: 500000 }],
+    ['a', 'deepseek-flash', 'CNY', { miss: 1000000, hit: 3000000, out: 500000 }],
+    ['a', 'deepseek-v4-pro', 'USD', { miss: 2000000, hit: 3500000, out: 600000 }],
+    ['a', 'deepseek-v4-pro', 'USD', { miss: 2, hit: 0, out: 0 }],
+    ['unknown', 'future-model', 'CNY', { miss: 100, hit: 200, out: 30 }],
+    ['unknown', 'deepseek-flash', 'CNY', { miss: 100, hit: 200, out: 30 }],
+    ['usd', 'deepseek-flash', 'USD', { miss: 1000000, hit: 2000000, out: 100000 }],
+  ]) {
+    const ledger = i.recordUsage(sessionId, { uncachedInputTokens: seen.miss, cacheReadTokens: seen.hit, outputTokens: seen.out }, model, currency, at);
+    const op = { type: 'usage', sessionId, model, currency, seen, at, day, hour,
+      prices: { CNY: i.priceOf(model, 'CNY'), USD: i.priceOf(model, 'USD') }, peak: i.isPeak(at) };
+    const applied = applyRecordOp(doc, op); doc = applied.doc;
+    assert.deepEqual(applied.result.ledger, ledger);
+    assert.deepEqual(doc.billDays, i.readDayLog());
+  }
+});
+
+console.log("Host/browser accounting parity tests passed (identical cumulative usage, model/currency changes, decreasing counters and newly priced ledgers).");
+
+// A slow poll cannot roll back a write that completed while it was in flight.
+{
+  let doc = emptyRecords(), slow = false, release;
+  const fetcher = async (url, init) => {
+    if (!url.startsWith('/rhine-splash/records')) return { ok: true, json: async () => ({ status: 'no-key' }) };
+    if (init.method === 'POST') {
+      const results = JSON.parse(init.body).ops.map((op) => { const value = applyRecordOp(doc, op); doc = value.doc; return value.result; });
+      return { ok: true, json: async () => ({ status: 'ready', rev: doc.rev, results }) };
+    }
+    const value = { status: 'ready', rev: doc.rev, file: '/test', doc: structuredClone(doc) };
+    if (slow) { slow = false; await new Promise((resolve) => { release = resolve; }); }
+    return { ok: true, json: async () => value };
+  };
+  await scenario({ stored: { 'rhine-splash:records-imported': '1' }, fetcher }, async ({ internals: i, advance, windowEvents }) => {
+    await settleRecords();
+    slow = true; windowEvents.dispatch('focus'); await settleRecords();
+    const newer = i.recordUsage('slow-poll', { uncachedInputTokens: 1000 }, 'deepseek-flash', 'CNY');
+    advance(500); await settleRecords();
+    release(); await settleRecords();
+    assert.deepEqual(i.readLedger('slow-poll'), newer);
+    assert.deepEqual(i.readDayLog(), doc.billDays);
+  });
+}
+console.log('Slow-refresh ordering test passed (completed local writes cannot be replaced by an older GET).');
