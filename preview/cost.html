@@ -8,6 +8,7 @@
     /* Stand-ins for the app's tokens. The page itself is the real CostPage
        from lib/client.js, rendered with React and 62 days of sample data.
        URL: ?range=1|7|30|62  ?empty  ?nohours  ?nokey  ?nobudget  ?low  ?table
+       ?weekly opens the real weekly report dialog, ?weekly=img shows the exported image
        ?pop renders the real billing card with costOpen "popup" and opens its
        panel (its chart opens the page)  ?side=0 hides the sidebar
        ?shot hides the controls  #dark */
@@ -101,6 +102,10 @@
       days[key(d)] = row
     }
     localStorage.setItem('rhine-splash:bill-days', JSON.stringify({ v: 1, currency: 'CNY', days }))
+    // Run log for the weekly report: a few runs on days with spending in the last two weeks.
+    const runDays = {}
+    for (const day of Object.keys(days).slice(-12)) { const runs = 2 + Math.floor(rand() * 9), longest = 60000 * (3 + Math.floor(rand() * 40)); runDays[day] = { runs, ms: longest + runs * 60000 * (2 + rand() * 6), longest } }
+    localStorage.setItem('rhine-splash:run-days', JSON.stringify({ v: 1, days: runDays }))
     for (const [id, ledger] of Object.entries(ledgers)) localStorage.setItem('rhine-splash:bill:' + id, JSON.stringify(ledger))
     if (params.has('range')) localStorage.setItem('rhine-splash:cost-range', params.get('range'))
 
@@ -149,12 +154,22 @@
         ReactDOM.createRoot(document.getElementById('foot')).render(React.createElement(internals.BillingWidget, card))
         setTimeout(() => document.querySelector('.rl-bill')?.click(), 120)
       }
+      if (params.has('weekly')) {
+        const holder = document.createElement('div'); document.body.append(holder)
+        ReactDOM.createRoot(holder).render(React.createElement(internals.WeeklyReport, { t, getLayout: () => ({ selectPanel: (id) => console.log('select', id) }) }))
+        if (params.get('weekly') === 'img') {
+          const report = internals.weeklyReport({ log: internals.readDayLog(), runs: internals.readRunLog(), weekStart: internals.weekStartOf(Date.now() - 7 * 86400000), now: Date.now() })
+          const img = new Image(); img.src = internals.paintWeekly(report, { t, dark: location.hash === '#dark' }).toDataURL()
+          img.style.cssText = 'position:fixed;inset:0;margin:auto;max-height:96vh;z-index:3000;box-shadow:0 10px 40px rgba(0,0,0,.3)'
+          document.body.append(img)
+        } else setTimeout(() => internals.openWeekly(), 100)
+      }
       if (params.has('table')) setTimeout(() => [...document.querySelectorAll('.rl-cp-toggle button')].at(-1)?.click(), 50)
     })
 
     if (!params.has('shot')) {
       const ctl = document.getElementById('ctl')
-      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['小卡片', '?pop'], ['余额低', '?pop&low'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
+      for (const [label, href] of [['今日', '?range=1'], ['7 天', '?range=7'], ['30 天', '?range=30'], ['62 天', '?range=62'], ['空', '?empty'], ['小卡片', '?pop'], ['余额低', '?pop&low'], ['周报', '?weekly'], ['周报图片', '?weekly=img'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
         const a = document.createElement('a'); a.textContent = label; a.href = href; ctl.append(a)
         if (label === '深色') a.addEventListener('click', () => setTimeout(() => location.reload()))
       }
