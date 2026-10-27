@@ -337,7 +337,7 @@ await scenario({}, async ({ slots, commands, internals: { compat, FIELDS }, adva
     "sidebar.footer.action": { "rhine-billing": "billing", "rhine-todo": "todo" },
     "main": "cost", "sidebar.session.row.hover": "todo",
     "conversation.input.right": "effort", "plugins.row.config": "settings", "settings.section": { "archived-sessions": "archives", "rhine-splash": "settings" },
-    "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": { "rhine-delete-confirm": "archives", "rhine-whats-new": "whatsNew" }, "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
+    "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": { "rhine-delete-confirm": "archives", "rhine-whats-new": "whatsNew", "rhine-weekly": "weekly" }, "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
   };
   for (const { options, Component } of slots) {
     const node = Component({ probe: true });
@@ -1500,7 +1500,7 @@ await scenario({ apply: false }, ({ internals: i }) => {
   const args = { current: "0.2.8", seen: null, hasHistory: false };
   assert.deepEqual(i.whatsNewFor(args), { kind: "welcome", version: "0.2.8", items: Array.from({ length: 5 }, (_, n) => "wn_welcome_" + (n + 1)) });
   for (const extra of [{ seen: "0.2.7" }, { hasHistory: true }]) {
-    assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 5 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
+    assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 6 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
   }
   for (const extra of [{ current: "" }, { seen: "0.2.8" }, { current: "0.2.9", hasHistory: true }, { current: "toString", hasHistory: true }]) assert.equal(i.whatsNewFor({ ...args, ...extra }), null);
   for (const [version, count] of Object.entries(i.WHATS_NEW)) for (let n = 1; n <= count; n++) {
@@ -1791,6 +1791,381 @@ for (const stored of [{ "rhine-splash:bill:old": "{}" }, { "rhine-splash:seen-ve
   });
 }
 
+// Weekly reports keep calendar aggregation separate from runtime tracking and dialog state.
+await scenario({ apply: false }, ({ internals: i, memory }) => {
+  const { dayKey, rangeDays, readRunLog, addRun, writeRunLog, weekStartOf, isoWeek, weeklyReport, reportWeeks, durationText } = i;
+  const now = new Date(2026, 9, 21, 12), empty = { v: 1, currency: "CNY", days: {} }, runs = { v: 1, days: {} };
+  assert.deepEqual(readRunLog(), runs);
+  const dates = rangeDays(now, 63);
+  const first = addRun(runs, { day: dates[0], ms: 2000 });
+  const second = addRun(first, { day: dates[1], ms: 3000 });
+  let recorded = addRun(second, { day: dayKey(now), ms: 4000 });
+  recorded = addRun(recorded, { day: dayKey(now), ms: 1500 });
+  assert.deepEqual(runs.days, {});
+  assert.deepEqual(first.days[dates[0]], { runs: 1, ms: 2000, longest: 2000 });
+  assert.ok(!Object.hasOwn(recorded.days, dates[0]));
+  assert.ok(Object.hasOwn(recorded.days, dates[1]));
+  assert.deepEqual(recorded.days[dayKey(now)], { runs: 2, ms: 5500, longest: 4000 });
+  writeRunLog(recorded);
+  assert.strictEqual(readRunLog(), recorded);
+  assert.deepEqual(JSON.parse(memory.get("rhine-splash:run-days")), recorded);
+  assert.equal(weekStartOf(new Date(2026, 9, 25, 23, 59)), "2026-10-19");
+  assert.equal(weekStartOf(new Date(2026, 9, 26, 0, 1)), "2026-10-26");
+  assert.equal(weekStartOf(new Date(2026, 2, 8, 23, 59)), "2026-03-02");
+  assert.equal(weekStartOf(new Date(2026, 2, 9, 0, 1)), "2026-03-09");
+  assert.equal(isoWeek("2020-12-28"), 53);
+  assert.equal(isoWeek("2021-01-04"), 1);
+  const blank = weeklyReport({ log: empty, runs, weekStart: "2026-10-19", now });
+  assert.equal(blank.start, "2026-10-19");
+  assert.equal(blank.end, "2026-10-25");
+  assert.equal(blank.week, 43);
+  assert.equal(blank.current, true);
+  assert.equal(blank.empty, true);
+  assert.equal(blank.avg, 0);
+  for (const key of ["previous", "change", "hitRate", "busiest", "offPeakShare", "runs"]) assert.equal(blank[key], null, key);
+  assert.equal(blank.days.length, 7);
+  const row = (cost, sessions, extra = {}) => ({ models: { flash: { cost, hit: 75, miss: 25, out: 10 } }, sessions, ...extra });
+  const hours = Array(24).fill(0); hours[15] = 3;
+  const log = { ...empty, days: {
+    "2026-10-12": row(2, { old: 2 }),
+    "2026-10-19": row(3, { a: 2, b: 1, zero: 0 }, { hours, peak: 1, offPeak: 2 }),
+    "2026-10-21": { models: { pro: { cost: 6, hit: 25, miss: 75, out: 2 } }, sessions: { a: 6 }, hours: hours.map((n) => n * 2) }
+  } };
+  const report = weeklyReport({ log, runs: recorded, weekStart: "2026-10-19", now });
+  assert.equal(report.total, 9);
+  assert.equal(report.avg, 3, "current week averages only elapsed local days");
+  assert.equal(report.previous, 2);
+  assert.equal(report.change, 3.5);
+  assert.equal(report.activeDays, 2);
+  assert.equal(report.conversations, 2, "positive session ids are distinct across days");
+  assert.deepEqual(report.models, [{ model: "pro", cost: 6, share: 2 / 3 }, { model: "flash", cost: 3, share: 1 / 3 }]);
+  assert.equal(report.hitRate, 0.5);
+  assert.deepEqual(report.busiest, { hour: 15, cost: 9 });
+  assert.equal(report.offPeakShare, 2 / 3, "only rows with both timing sums contribute");
+  assert.deepEqual(report.runs, { count: 2, ms: 5500, longest: 4000 });
+  assert.equal(report.empty, false);
+  assert.equal(weeklyReport({ log, runs, weekStart: "2026-10-19", now: new Date(2026, 9, 27) }).avg, 9 / 7);
+  const noPrevious = { ...log, days: { "2026-10-19": log.days["2026-10-19"] } };
+  const without = weeklyReport({ log: noPrevious, runs, weekStart: "2026-10-19", now });
+  assert.equal(without.previous, null);
+  assert.equal(without.change, null);
+  const zeroPrevious = { ...noPrevious, days: { ...noPrevious.days, "2026-10-12": row(0, {}) } };
+  const zero = weeklyReport({ log: zeroPrevious, runs, weekStart: "2026-10-19", now });
+  assert.equal(zero.previous, 0);
+  assert.equal(zero.change, null);
+  const runOnly = weeklyReport({ log: empty, runs: recorded, weekStart: "2026-10-19", now });
+  assert.equal(runOnly.empty, false);
+  assert.equal(runOnly.busiest, null);
+  assert.deepEqual(reportWeeks({ log: empty, runs, now }), ["2026-10-19"]);
+  assert.deepEqual(reportWeeks({ log, runs, now }), ["2026-10-19", "2026-10-12"]);
+  const oldDays = { [dates[0]]: row(1, {}), [dates[1]]: row(1, {}) };
+  const weeks = reportWeeks({ log: { ...empty, days: oldDays }, runs, now });
+  assert.equal(weeks.at(-1), weekStartOf(new Date(dates[1] + "T12:00:00")));
+  assert.deepEqual(reportWeeks({ log: empty, runs: { v: 1, days: { "2026-10-12": { runs: 1, ms: 1000, longest: 1000 } } }, now }), ["2026-10-19", "2026-10-12"]);
+  for (const [ms, zh, en] of [[59000, "59 秒", "59 sec"], [60000, "1 分钟", "1 min"], [3599999, "59 分钟", "59 min"], [3600000, "1 小时", "1 h"], [3660000, "1 小时 1 分", "1 h 1 min"]]) {
+    assert.equal(durationText(ms, (key) => i.zh[key]), zh);
+    assert.equal(durationText(ms, (key) => i.en[key]), en);
+  }
+  assert.deepEqual(i.FIELDS.weeklyReport, { type: "switch", section: "tools", command: true });
+  const keys = Object.keys(i.FIELDS);
+  assert.equal(keys.indexOf("weeklyReport"), keys.indexOf("costOpen") + 1);
+  assert.equal(i.normalize({ weeklyReport: false }).weeklyReport, false);
+  assert.equal(i.normalize({ weeklyReport: "false" }).weeklyReport, true);
+  assert.equal(i.specs().find((field) => field.field === "weeklyReport").parse("false").value, false);
+  for (const key of Object.keys(i.zh).filter((key) => key.startsWith("wk") || key === "cf_weekly")) assert.ok(i.en[key]);
+});
+for (const raw of ["{", null, [], { v: 2, days: {} }, { v: 1, days: [] }, { v: 1, days: null }]) {
+  await scenario({ apply: false, stored: { "rhine-splash:run-days": typeof raw === "string" ? raw : JSON.stringify(raw) } }, ({ internals: i }) => {
+    assert.deepEqual(i.readRunLog(), { v: 1, days: {} });
+  });
+}
+{
+  const date = new Date(), days = [];
+  for (let i = 0; i < 63; i++) { const next = new Date(date); next.setDate(date.getDate() - i); days.push([next.getFullYear(), String(next.getMonth() + 1).padStart(2, "0"), String(next.getDate()).padStart(2, "0")].join("-")); }
+  const valid = { runs: 1, ms: 2000, longest: 2000 };
+  const malformed = [null, [], { ...valid, runs: "1" }, { ...valid, runs: 0 }, { ...valid, runs: 1.5 }, { ...valid, ms: -1 }, { ...valid, longest: 3000 }];
+  const buckets = Object.fromEntries(days.map((day) => [day, valid]));
+  malformed.forEach((row, index) => { buckets[days[index + 1]] = row; });
+  buckets["2026-02-30"] = valid;
+  await scenario({ apply: false, stored: { "rhine-splash:run-days": JSON.stringify({ v: 1, days: buckets }) } }, ({ internals: i }) => {
+    const log = i.readRunLog();
+    assert.deepEqual(log.days[days[0]], valid, "malformed buckets do not discard valid days");
+    assert.ok(Object.hasOwn(log.days, days[61]));
+    for (const day of [...days.slice(1, 8), days[62], "2026-02-30"]) assert.ok(!Object.hasOwn(log.days, day));
+  });
+}
+await scenario({ config: { notifySystem: false, notifyToast: false, notifySound: false }, change: (services) => {
+  services.sessions.list.emit({ phase: "loading", byId: { unknown: {}, a: {}, tiny: {}, sub: { origin: "subagent" }, blank: { blank: true } } });
+  services.uiSession.sessionStatus.emit(new Map([["unknown", { running: true }]]));
+} }, ({ services, status, internals: i }) => {
+  const original = Date.now;
+  let now = new Date(2026, 9, 21, 12).getTime();
+  Date.now = () => now;
+  const emit = (values) => status.emit(new Map(Object.entries(values)));
+  try {
+    services.sessions.list.emit({ ...services.sessions.list.getSnapshot(), phase: "ready" });
+    assert.equal(i.runTimes.get("unknown").known, false);
+    emit({ unknown: {}, a: { running: true }, tiny: { running: true }, sub: { running: true }, blank: { running: true }, missing: { running: true } });
+    assert.equal(i.readRunLog().days[i.dayKey(now)], undefined, "unknown initial run is never recorded");
+    assert.equal(i.runTimes.size, 2);
+    now += 999;
+    emit({ a: { running: true }, tiny: {}, sub: {}, blank: {} });
+    assert.equal(i.readRunLog().days[i.dayKey(now)], undefined, "sub-second runs are ignored");
+    now += 1001;
+    emit({ a: { running: true, pendingInteraction: {} } });
+    now += 60000;
+    emit({ a: { running: true } });
+    now += 3000;
+    emit({ a: { running: false } });
+    assert.deepEqual(i.readRunLog().days[i.dayKey(now)], { runs: 1, ms: 5000, longest: 5000 }, "pending time is excluded");
+    assert.equal(i.runTimes.size, 0);
+    emit({ a: { running: true, pendingInteraction: {} } });
+    now += 10000;
+    emit({ a: { running: false } });
+    assert.equal(i.readRunLog().days[i.dayKey(now)].runs, 1, "waiting-only runs are ignored");
+    emit({ a: { running: true } });
+    now += 1000;
+    emit({ a: {} });
+    assert.deepEqual(i.readRunLog().days[i.dayKey(now)], { runs: 2, ms: 6000, longest: 5000 });
+  } finally { Date.now = original; }
+});
+
+// Auto-open waits for onboarding, launch visibility and the settle period.
+const weeklySeed = () => {
+  const now = new Date(), monday = new Date(now);
+  monday.setHours(12, 0, 0, 0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7 - 7);
+  const last = [monday.getFullYear(), String(monday.getMonth() + 1).padStart(2, "0"), String(monday.getDate()).padStart(2, "0")].join("-");
+  return { last, stored: { "rhine-splash:bill-days": JSON.stringify({ v: 1, currency: "CNY", days: { [last]: { models: { flash: { cost: 2, miss: 1, hit: 2, out: 0 } }, sessions: { secret: 2 } } } }) } };
+};
+{
+  const { last, stored } = weeklySeed();
+  await scenario({ config: { version: "0.2.8", updateCheck: false }, stored }, ({ internals: i, advance, memory }) => {
+    advance(30000);
+    assert.ok(i.whatsNewState.getSnapshot().entry);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null, "wait for what's new without a 20 s limit");
+    assert.equal(memory.has("rhine-splash:weekly-seen"), false);
+    i.whatsNewState.set(null);
+    advance(1200);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+    advance(300);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, last);
+    assert.equal(memory.get("rhine-splash:weekly-seen"), last);
+  });
+  await scenario({ config: { weeklyReport: false, updateCheck: false }, stored }, ({ internals: i, advance, configStore }) => {
+    advance(25000);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+    configStore.emit({ ...configStore.getSnapshot(), value: { ...DEFAULTS, updateCheck: false, weeklyReport: true } });
+    advance(1500);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, last);
+  });
+  await scenario({ stored: { ...stored, "rhine-splash:weekly-seen": last } }, ({ internals: i, advance }) => {
+    advance(25000);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+  });
+  await scenario({ stored }, ({ internals: i, advance, memory }) => {
+    let splash = true;
+    document.getElementById = () => splash ? {} : null;
+    document.visibilityState = "hidden";
+    advance(900);
+    splash = false;
+    advance(900);
+    document.visibilityState = "visible";
+    advance(1200);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+    advance(300);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, last);
+    assert.equal(memory.get("rhine-splash:weekly-seen"), last);
+  });
+  await scenario({ stored }, ({ internals: i, advance, memory }) => {
+    document.getElementById = () => ({});
+    advance(21000);
+    document.getElementById = () => null;
+    advance(1500);
+    assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+    assert.equal(memory.has("rhine-splash:weekly-seen"), false);
+  });
+  for (const data of [{}, { "rhine-splash:bill-days": JSON.stringify({ v: 1, currency: "CNY", days: {} }) }, { "rhine-splash:run-days": JSON.stringify({ v: 1, days: { [last]: { runs: 1, ms: 1000, longest: 1000 } } }) }]) {
+    await scenario({ stored: data, config: { updateCheck: false } }, ({ internals: i, advance, memory }) => {
+      advance(1500);
+      assert.equal(i.weeklyState.getSnapshot().weekStart, null, "empty weeks and brand-new installs do not open");
+      assert.equal(memory.get("rhine-splash:weekly-seen"), last);
+    });
+  }
+}
+await scenario({ config: { updateCheck: false }, change: (services) => {
+  services.sessions.list.emit({ phase: "ready", byId: { secret: { title: "PRIVATE CONVERSATION TITLE", displayTitle: "PRIVATE CONTENT" } } });
+} }, ({ slots, render, mount, services, internals: i }) => {
+  const { last, stored } = weeklySeed();
+  i.writeDayLog(JSON.parse(stored["rhine-splash:bill-days"]));
+  const entry = slots.find(({ options }) => options.id === "rhine-weekly");
+  assert.equal(entry.Component({}).props.feature, "weekly");
+  assert.strictEqual(entry.options.inject().getLayout(), services.layout);
+  const props = { ...entry.options.inject(), t: (key) => i.zh[key] };
+  let restored = 0, focused = 0;
+  document.activeElement = { focus: () => restored++ };
+  const dialog = mount(i.WeeklyReport, props, true);
+  assert.equal(dialog.render(), null);
+  i.weeklyState.set(last);
+  let node = dialog.render(), nodes = nodesOf(node);
+  const find = (name) => nodes.find((item) => item.props?.className === name);
+  find("rl-wk-x").props.ref.current = { focus: () => focused++ };
+  assert.equal(node.props.className, "rl-wk-scrim");
+  assert.equal(find("rl-wk").props.role, "dialog");
+  assert.equal(find("rl-wk").props["aria-modal"], "true");
+  assert.equal(nodes.filter((item) => item.props?.className === "rl-wk-cell").length, 8);
+  assert.equal(nodes.filter((item) => item.props?.className === "rl-wk-day").length, 7);
+  assert.deepEqual(nodes.filter((item) => item.props?.className === "rl-wk-step").map((item) => item.props.disabled), [true, false]);
+  assert.ok(!JSON.stringify(node).includes("PRIVATE"));
+  assert.ok(!JSON.stringify(node).includes("secret"));
+  let prevented = 0;
+  find("rl-wk").props.onKeyDown({ key: "ArrowRight", preventDefault: () => prevented++ });
+  node = dialog.render(); nodes = nodesOf(node);
+  assert.equal(find("rl-wk").props["data-current"], "true");
+  assert.ok(find("rl-wk-empty"));
+  assert.ok(!find("rl-wk-grid") && !find("rl-wk-days"));
+  assert.deepEqual(nodes.filter((item) => item.props?.className === "rl-wk-step").map((item) => item.props.disabled), [false, true]);
+  assert.equal(nodes.filter((item) => item.props?.className?.includes("rl-wk-btn")).length, 3);
+  document.dispatch("keydown", { key: "Escape", preventDefault: noop });
+  assert.equal(dialog.render(), null);
+  assert.equal(restored, 1);
+  i.openWeekly(); dialog.render();
+  assert.equal(focused, 1, "close button receives focus on reopen");
+  const page = slots.find(({ options }) => options.name === "main");
+  i.weeklyState.set(null); dialog.render();
+  const pageNode = render(page.Component({}).props.children.type, { ...page.options.inject(), t: props.t });
+  nodesOf(pageNode).find((item) => item.props?.className === "rl-cp-btn rl-cp-weekly").props.onClick();
+  assert.equal(i.weeklyState.getSnapshot().weekStart, last);
+  node = dialog.render(); nodes = nodesOf(node);
+  nodes.find((item) => item.props.children === i.zh.wkCost).props.onClick();
+  assert.equal(services.layout.panelInfo.getSnapshot().activePanelId, "rhine-cost");
+  assert.equal(dialog.render(), null);
+  i.writeDayLog({ v: 1, currency: "CNY", days: {} });
+  i.openWeekly();
+  assert.equal(i.weeklyState.getSnapshot().weekStart, i.weekStartOf(Date.now()));
+  node = dialog.render();
+  node.props.onClick({ target: {}, currentTarget: {} });
+  assert.ok(i.weeklyState.getSnapshot().weekStart);
+  const scrim = {}; node.props.onClick({ target: scrim, currentTarget: scrim });
+  assert.equal(dialog.render(), null);
+  assert.equal(prevented, 1);
+});
+await scenario({ change: (services) => { delete services.layout; } }, ({ slots, render, internals: i }) => {
+  const entry = slots.find(({ options }) => options.id === "rhine-weekly");
+  assert.equal(entry.options.inject().getLayout(), undefined);
+  i.openWeekly();
+  const node = render(i.WeeklyReport, { ...entry.options.inject(), t: (key) => i.en[key] });
+  assert.ok(!nodesOf(node).some((item) => item.props?.children === i.en.wkCost));
+});
+
+await scenario({ apply: false }, ({ internals: i }) => {
+  const saved = process.env.TZ;
+  try {
+    process.env.TZ = "America/New_York";
+    for (const [time, expected] of [[new Date(2026, 2, 8, 23, 59), "2026-03-02"], [new Date(2026, 2, 9, 0, 1), "2026-03-09"], [new Date(2026, 10, 1, 23, 59), "2026-10-26"], [new Date(2026, 10, 2, 0, 1), "2026-11-02"]]) {
+      assert.equal(i.weekStartOf(time), expected, "local weeks survive DST transitions");
+    }
+    const report = i.weeklyReport({ log: { currency: "CNY", days: {} }, runs: { days: {} }, weekStart: "2026-03-02", now: new Date(2026, 2, 8, 23, 59) });
+    assert.deepEqual(report.days.map((row) => row.day), ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08"]);
+  } finally { if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved; }
+});
+await scenario({ config: { notifySystem: false, notifyToast: false, notifySound: false }, change: (services) => {
+  services.sessions.list.emit({ phase: "ready", byId: { a: {} } });
+  services.uiSession.sessionStatus.emit(new Map([["a", { running: true }]]));
+} }, ({ status, internals: i }) => {
+  assert.equal(i.runTimes.get("a").known, false, "a ready-list baseline also has an unknown start");
+  status.emit(new Map([["a", {}]]));
+  assert.deepEqual(i.readRunLog().days, {});
+  const saved = Date.now;
+  let now = new Date(2026, 9, 21, 23, 59, 59).getTime();
+  Date.now = () => now;
+  try {
+    status.emit(new Map([["a", { running: true }]]));
+    now += 2000;
+    status.emit(new Map([["a", {}]]));
+    assert.deepEqual(i.readRunLog().days, { "2026-10-22": { runs: 1, ms: 2000, longest: 2000 } });
+  } finally { Date.now = saved; }
+});
+await scenario({ apply: false }, async ({ internals: i, mount, render, advance }) => {
+  const properties = ["navigator", "ClipboardItem"].map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+  const originalCreate = document.createElement, originalURL = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  const writes = [], clicks = [], revoked = [], text = [], fills = [], blob = {};
+  const context = { fillRect: () => fills.push(context.fillStyle), fillText: (value) => text.push(value), measureText: (value) => ({ width: String(value).length * 10 }),
+    beginPath: noop, moveTo: noop, lineTo: noop, fill: noop };
+  let output = blob, denied = false;
+  const canvas = { getContext: () => context, toBlob: (callback, mime) => { assert.equal(mime, "image/png"); callback(output); } };
+  try {
+    document.createElement = (tag) => tag === "canvas" ? canvas : { click() { clicks.push(this.download); }, remove: noop };
+    URL.createObjectURL = (value) => { assert.strictEqual(value, blob); return "blob:weekly"; };
+    URL.revokeObjectURL = (url) => revoked.push(url);
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard: { write: async (items) => { if (denied) throw new Error("denied"); writes.push(items); } } } });
+    Object.defineProperty(globalThis, "ClipboardItem", { configurable: true, value: class { constructor(value) { this.value = value; } } });
+    const report = i.weeklyReport({ log: { currency: "CNY", days: {} }, runs: { days: {} }, weekStart: "2020-12-28", now: Date.now() });
+    const t = (key) => i.zh[key];
+    assert.strictEqual(i.paintWeekly(report, { t, dark: false }), canvas);
+    assert.equal(canvas.width, 1080); assert.equal(canvas.height, 1350);
+    assert.equal(fills[0], "#f8f6f1");
+    // An empty week draws the frame, title, empty line and footer, and no conversation text.
+    assert.ok(text.includes(i.zh.wkTitle) && text.includes(i.zh.wkEmpty) && text.includes(i.zh.wkPrivacy));
+    const full = i.weeklyReport({ log: { currency: "CNY", days: { "2020-12-29": { models: { "deepseek-v4-flash": { cost: 1.5, miss: 10, hit: 30, out: 5 } }, sessions: { s1: 1.5 } } } },
+      runs: { v: 1, days: { "2020-12-29": { runs: 2, ms: 90000, longest: 60000 } } }, weekStart: "2020-12-28", now: Date.now() });
+    text.length = 0;
+    i.paintWeekly(full, { t, dark: false });
+    assert.ok(["¥1.50", "deepseek-v4-flash", i.zh.wkLongest, i.weeklyCells(full, t)[7].value].every((value) => text.includes(value)));
+    const darkFrom = fills.length;
+    document.body.setAttribute("data-ds-dark-theme", "");
+    assert.equal(await i.exportWeekly(report, "save", { t }), true);
+    assert.equal(fills[darkFrom], "#171614");
+    assert.deepEqual(clicks, ["rhine-weekly-2020-W53.png"]);
+    assert.deepEqual(revoked, []);
+    advance(10000);
+    assert.deepEqual(revoked, ["blob:weekly"]);
+    assert.equal(await i.exportWeekly(report, "copy", { t }), true);
+    assert.strictEqual(writes[0][0].value["image/png"], blob);
+    output = null;
+    assert.equal(await i.exportWeekly(report, "copy", { t }), false);
+    output = blob; denied = true;
+    assert.equal(await i.exportWeekly(report, "copy", { t }), false);
+    denied = false;
+    i.openWeekly();
+    const dialog = mount(i.WeeklyReport, { t }, true);
+    const copyButton = () => nodesOf(dialog.render()).find((node) => node.props?.className === "rl-wk-btn");
+    await copyButton().props.onClick();
+    assert.equal(copyButton().props.children, i.zh.wkCopied);
+    advance(1499);
+    assert.equal(copyButton().props.children, i.zh.wkCopied);
+    advance(1);
+    assert.equal(copyButton().props.children, i.zh.wkCopy);
+    denied = true;
+    await copyButton().props.onClick();
+    assert.equal(copyButton().props.children, i.zh.wkCopyFailed);
+    i.weeklyState.set(null); dialog.render();
+    const today = i.dayKey(Date.now());
+    i.writeDayLog({ v: 1, currency: "CNY", days: { [today]: { models: { flash: { cost: 2, miss: 0, hit: 1, out: 0 } }, sessions: {} } } });
+    i.openWeekly();
+    const nodes = nodesOf(render(i.WeeklyReport, { t }));
+    assert.equal(nodes.filter((node) => node.props?.className === "rl-wk-day" && node.props["data-today"] === "true").length, 1);
+    assert.equal(nodes.filter((node) => node.props?.className === "rl-wk-day" && node.props["data-zero"] === "true").length, 6);
+    assert.equal(nodes.filter((node) => node.props?.className === "rl-wk-bar").every((node) => node.props.style["--h"] >= 0 && node.props.style["--h"] <= 1), true);
+    document.createElement = () => { throw new Error("unavailable"); };
+    assert.equal(await i.exportWeekly(report, "save", { t }), false);
+  } finally {
+    document.createElement = originalCreate;
+    URL.createObjectURL = originalURL.create; URL.revokeObjectURL = originalURL.revoke;
+    for (const [key, descriptor] of properties) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
+  }
+});
+
+await scenario({ config: { weeklyReport: false, updateCheck: false } }, ({ memory, configStore, advance, internals: i, dispose }) => {
+  assert.equal(memory.has("rhine-splash:weekly-seen"), false, "disabled auto-open leaves the seen marker alone");
+  configStore.emit({ ...configStore.getSnapshot(), value: { ...DEFAULTS, updateCheck: false } });
+  assert.ok(memory.get("rhine-splash:weekly-seen"));
+  advance(1500);
+  assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+  i.openWeekly();
+  dispose();
+  assert.equal(i.weeklyState.getSnapshot().weekStart, null);
+});
+
 // Load the actual splash script; reaching createElement proves the gate allowed playback.
 {
   const splash = readFileSync(new URL("../lib/splash.js", import.meta.url), "utf8");
@@ -1823,4 +2198,4 @@ for (const stored of [{ "rhine-splash:bill:old": "{}" }, { "rhine-splash:seen-ve
   assert.deepEqual(JSON.parse(state.memory.get("rhine-splash:splash-seen")), { day: today, version: "0.2.8" });
 }
 
-console.log("Client tests passed (new settings/quiet/min-run, balance alerts/low DOM, updates/cache/banner/copy, settings section, welcome/update lifecycle, splash gates/replay, locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost report/hour/peak/page, unarchive, shared row-status timing, money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");
+console.log("Client tests passed (weekly run log/tracking/calendar/report/auto-open/dialog/privacy, new settings/quiet/min-run, balance alerts/low DOM, updates/cache/banner/copy, settings section, welcome/update lifecycle, splash gates/replay, locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost report/hour/peak/page, unarchive, shared row-status timing, money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");

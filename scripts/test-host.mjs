@@ -312,7 +312,7 @@ assert.equal(DEFAULTS.heroBackground, 'random');
 assert.equal(DEFAULTS.resumeEffect, 'random');
 assert.equal(DEFAULTS.resumeTrigger, 'hidden');
 assert.equal(DEFAULTS.costOpen, 'popup');
-for (const key of ['notifyCurrent', 'notifyOthers', 'notifyAway', 'notifySystem', 'notifyToast', 'notifySound']) {
+for (const key of ['weeklyReport', 'notifyCurrent', 'notifyOthers', 'notifyAway', 'notifySystem', 'notifyToast', 'notifySound']) {
   assert.equal(DEFAULTS[key], true);
   assert.equal(resolveConfig({ [key]: false })[key], false);
   assert.equal(resolveConfig({ [key]: true })[key], true);
@@ -738,4 +738,4 @@ for (const [latest, current, newer] of [['0.2.8', '0.2.7', true], ['0.10.0', '0.
   } finally { globalThis.fetch = savedFetch; Date.now = savedNow; }
 }
 
-console.log('Host tests passed (update route/cache/fallback/auth, new settings/version, accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');
+console.log('Host tests passed (weeklyReport default/validation, update route/cache/fallback/auth, new settings/version, accent/base validation and migration, derived splash colours, CSS palette contracts, live config/cells, both logo maps/hero fallback, safe globals/root bootstrap, theme/replay injection order, settings opt-out, optional/missing assets).');
