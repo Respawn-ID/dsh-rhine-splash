@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings Preview</title>
+  <style>
+    /* Stand-ins for the app's tokens and form controls. The page is the real
+       SettingsSection (Card) and WhatsNewCard from lib/client.js.
+       URL: ?update shows the new-version banner  ?wn=welcome|update opens
+       the what's-new card  ?shot hides the controls  #dark */
+    body {
+      --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
+      --dsw-radius-xs: 2px; --dsw-radius-sm: 4px; --dsw-radius-md: 6px;
+      --dsw-static-deepseek-500: #e46f24;
+      --dsw-alias-bg-base: #fbfaf7;
+      --dsw-alias-label-primary: #12110f; --dsw-alias-label-secondary: #5f5c56; --dsw-alias-label-tertiary: #949087;
+      --dsw-alias-border-l1: rgba(18, 17, 15, .06); --dsw-alias-border-l2: rgba(18, 17, 15, .12); --dsw-alias-border-l3: rgba(18, 17, 15, .22);
+      --dsw-alias-interactive-bg-hover: rgba(18, 17, 15, .05);
+      --dsw-alias-state-error-primary: #d63a4f;
+      margin: 0; min-height: 100vh; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+      font: 13px/1.5 var(--dsw-font-family);
+    }
+    body[data-ds-dark-theme] {
+      --dsw-static-deepseek-500: #f0893e; --dsw-alias-bg-base: #1d1c1a;
+      --dsw-alias-label-primary: #f6f5f1; --dsw-alias-label-secondary: #aca89e; --dsw-alias-label-tertiary: #7d7971;
+      --dsw-alias-border-l1: rgba(255, 255, 255, .05); --dsw-alias-border-l2: rgba(255, 255, 255, .1); --dsw-alias-border-l3: rgba(255, 255, 255, .2);
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, .06);
+    }
+    .panel { box-sizing: border-box; max-width: 640px; margin: 0 auto; padding: 32px 16px 96px; }
+    .ctl { position: fixed; left: 16px; bottom: 16px; z-index: 2000; display: flex; flex-wrap: wrap; gap: 6px; }
+    .ctl a { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-base); color: inherit; text-decoration: none; }
+    .stub-field { display: flex; align-items: center; gap: 16px; min-height: 44px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+    .stub-field label { flex: 1; }
+    .stub-field input, .stub-select { width: 120px; font: inherit; color: inherit; background: transparent; border: 1px solid var(--dsw-alias-border-l2); border-radius: 4px; padding: 3px 6px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+  <div class="panel" id="panel"></div>
+  <div id="overlay"></div>
+  <div class="ctl" id="ctl"></div>
+  <script>
+    const params = new URLSearchParams(location.search)
+    if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    globalThis.__RHINE_SPLASH__ = { version: '0.2.8', uiTheme: true, accent: 'rhine', base: 'warm', quietHours: true }
+    globalThis.__RHINE_BRAND__ = {}
+
+    let factory
+    window.__ModuleLoader__ = { load: (definition) => { factory = definition.factory } }
+    const h = React.createElement
+    const jsx = (type, props, key) => h(type, key === undefined ? props : { ...props, key })
+    // Minimal stand-ins for the dsh primitives the config page uses.
+    const stubs = {
+      Switch: ({ checked, label }) => h('input', { type: 'checkbox', defaultChecked: checked, 'aria-label': label }),
+      SegmentedControl: ({ value, options }) => h('select', { className: 'stub-select', defaultValue: value }, options.map((o) => h('option', { key: o.value, value: o.value }, o.label))),
+      SettingsValueField: ({ label, text }) => h('div', { className: 'stub-field' }, h('label', null, label), h('input', { defaultValue: text }))
+    }
+    const P = new Proxy(stubs, { get: (target, key) => target[key] || (() => null) })
+    const modules = { react: React, 'react-dom': ReactDOM, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: React.Fragment }, '@deepseek-ai/dsh-client-ui-primitives': P }
+    const hook = (value) => (select) => select(value)
+    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+      const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
+      const style = document.createElement('style')
+      style.textContent = new Function(`return ${body}`)().join('')
+      document.head.append(style)
+      new Function(src)()
+      const { internals } = factory((name) => modules[name])
+      const t = (k) => internals.zh[k] ?? k
+      const config = { ...internals.normalize({}), quietHours: true }
+      const fields = Object.fromEntries(Object.keys(internals.FIELDS).map((key) => [key, { text: String(config[key] ?? ''), overridden: false }]))
+      const props = {
+        t, useRhineSplash: hook({ available: true, writable: true, fields }), useRhineCompat: hook([]),
+        useRhineUpdate: hook(params.has('update') ? { latest: '0.2.9', newer: true } : { latest: null, newer: false }),
+        edit: () => {}, resetField: () => {}, scheduleSave: () => {}, runPreview: (id) => console.log('preview', id)
+      }
+      ReactDOM.createRoot(document.getElementById('panel')).render(h(internals.SettingsSection, props))
+      ReactDOM.createRoot(document.getElementById('overlay')).render(h(internals.WhatsNewCard, { t, getNavigation: () => ({ openBundle: () => console.log('settings') }) }))
+      const kind = params.get('wn')
+      if (kind) setTimeout(() => internals.whatsNewState.set(internals.whatsNewFor({ current: '0.2.8', seen: kind === 'update' ? '0.2.7' : null, hasHistory: kind === 'update' })), 200)
+    })
+
+    if (!params.has('shot')) {
+      const ctl = document.getElementById('ctl')
+      for (const [label, href] of [['设置', '?'], ['新版本', '?update'], ['本次更新', '?wn=update'], ['欢迎', '?wn=welcome'], ['深色', location.search + (location.hash === '#dark' ? '' : '#dark')]]) {
+        const a = document.createElement('a'); a.textContent = label; a.href = href; ctl.append(a)
+        if (label === '深色') a.addEventListener('click', () => setTimeout(() => location.reload()))
+      }
+    }
+  </script>
+</body>
+</html>

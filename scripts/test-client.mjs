@@ -17,7 +17,17 @@ const element = () => {
     toggleAttribute(name, force = !attributes.has(name)) { if (force) attributes.set(name, ""); else attributes.delete(name); return force; },
     hasAttribute: (name) => attributes.has(name),
     getAttribute: (name) => attributes.get(name) ?? null,
-    querySelector: () => null,
+    querySelector(selector) {
+      const find = (nodes) => {
+        for (const node of nodes) {
+          if (node.className?.split(" ").includes(selector.slice(1))) return node;
+          const child = find(node.children || []);
+          if (child) return child;
+        }
+        return null;
+      };
+      return selector.startsWith(".") ? find(children) : null;
+    },
     addEventListener(name, fn) { if (!events.has(name)) events.set(name, new Set()); events.get(name).add(fn); },
     removeEventListener: (name, fn) => events.get(name)?.delete(fn),
     dispatch(name, event) { for (const fn of events.get(name) || []) fn(event); },
@@ -41,7 +51,7 @@ function store(value) {
   };
 }
 
-async function scenario({ config = {}, change = noop, apply = true, stored = {} } = {}, check = noop) {
+async function scenario({ config = {}, change = noop, apply = true, stored = {}, fetcher } = {}, check = noop) {
   const timers = new Map();
   let timerId = 0, now = 0;
   const setTimer = (fn, delay = 0) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; };
@@ -94,20 +104,20 @@ async function scenario({ config = {}, change = noop, apply = true, stored = {} 
   const notifications = [];
   const memory = new Map(Object.entries(stored));
   const globals = {
-    window: globalThis,
+    window: globalThis, focus: noop,
     document: { ...element(), createElement: element, head: element(), body: element(), documentElement: element(), visibilityState: "visible", hasFocus: () => true, getElementById: () => null },
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     requestAnimationFrame: (fn) => setTimer(fn, 16), cancelAnimationFrame: (id) => timers.delete(id),
     setTimeout: setTimer, clearTimeout: (id) => timers.delete(id),
     setInterval: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay, repeat: delay }); return id; },
     clearInterval: (id) => timers.delete(id),
-    fetch: async () => ({ ok: true, json: async () => ({ status: "no-key" }) }),
+    fetch: fetcher || (async () => ({ ok: true, json: async () => ({ status: "no-key" }) })),
     addEventListener: windowEvents.addEventListener, removeEventListener: windowEvents.removeEventListener,
     Notification: class { static permission = "granted"; constructor(title, options) { notifications.push({ title, options }); } },
     __RHINE_SPLASH__: { ...DEFAULTS, ...config },
     __RHINE_BRAND__: { mark: "<svg/>", name: "Rhine", hero: "<svg/>", marks: { plate: "plate mark", cell: "cell mark" }, heroes: { plate: "plate hero", cell: "cell hero" } },
     __ModuleLoader__: { load: (definition) => { factory = definition.factory; } },
-    localStorage: { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, String(value)) }
+    localStorage: { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, String(value)), get length() { return memory.size; }, key: (index) => [...memory.keys()][index] ?? null }
   };
   const saved = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const warnings = [], originalWarn = console.warn;
@@ -326,8 +336,8 @@ await scenario({}, async ({ slots, commands, internals: { compat, FIELDS }, adva
   const expected = {
     "sidebar.footer.action": { "rhine-billing": "billing", "rhine-todo": "todo" },
     "main": "cost", "sidebar.session.row.hover": "todo",
-    "conversation.input.right": "effort", "plugins.row.config": "settings", "settings.section": "archives",
-    "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": "archives", "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
+    "conversation.input.right": "effort", "plugins.row.config": "settings", "settings.section": { "archived-sessions": "archives", "rhine-splash": "settings" },
+    "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": { "rhine-delete-confirm": "archives", "rhine-whats-new": "whatsNew" }, "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
   };
   for (const { options, Component } of slots) {
     const node = Component({ probe: true });
@@ -469,7 +479,7 @@ await scenario({ change: (services) => {
   services.sessions.list = store({ phase: "ready", byId: { s1: { title: "First" }, s2: { displayTitle: "Second" }, s3: {} } });
 } }, async ({ slots, mount, render, services, advance, internals: { deleteRequest, en } }) => {
   const t = (key) => en[key];
-  const inner = (name) => slots.find(({ options }) => options.name === name).Component({}).props.children.type;
+  const inner = (name) => slots.find(({ options }) => options.name === name && (name !== "shell.overlay" || options.id === "rhine-delete-confirm")).Component({}).props.children.type;
   const item = slots.find(({ options }) => options.id === "rhine-delete");
   const menuProps = { ...item.options.inject(), t, useMenuOpenState: () => [true, (open) => { menuOpen = open; }] };
   let menuOpen = true;
@@ -568,7 +578,7 @@ await scenario({}, ({ status, internals: { compat }, warnings, advance }) => {
 });
 for (const [path, affected] of [
   ["sessions.binding", ["billing"]], ["sessions.subagentAddress", ["effort"]],
-  ["workspaces.list.subscribe", ["archives"]], ["slots.entries", ["archives"]],
+  ["workspaces.list.subscribe", ["archives"]], ["slots.entries", ["archives", "settings"]],
   ["configForms.whileServed", ["settings"]], ["commandUi.register", ["todo", "command"]]
 ]) await scenario({ change: (services) => {
   const keys = path.split("."), last = keys.pop();
@@ -864,7 +874,7 @@ for (const value of ["{", { v: 2, currency: "CNY", days: {} }, { v: 1, currency:
 }
 
 await scenario({ apply: false }, ({ internals: { specs, normalize }, memory }) => {
-  for (const field of ["budgetDaily", "budgetSession"]) {
+  for (const field of ["budgetDaily", "budgetSession", "balanceAlert"]) {
     const spec = specs().find((row) => row.field === field);
     assert.equal(spec.format(undefined), "0");
     assert.deepEqual(spec.parse(" 12.345 "), { kind: "set", value: 12.35 });
@@ -997,14 +1007,14 @@ await scenario({}, async ({ slots, configStore, render, internals: { live } }) =
   const card = render(billing.Component({}).props.children.type, { ...props, wide: true, t: (key) => key });
   assert.equal(card.props.className, "rl-bill");
   assert.equal(card.props.role, "button");
-  assert.equal(card.props["aria-haspopup"], undefined);
-  assert.equal(card.props["aria-expanded"], undefined);
+  assert.equal(card.props["aria-haspopup"], "dialog");
+  assert.equal(card.props["aria-expanded"], false);
   assert.equal(card.props["aria-current"], undefined);
   assert.equal(card.props["aria-label"], "costOpen");
 });
 
 const nodesOf = (node) => Array.isArray(node) ? node.flatMap(nodesOf) : node && typeof node === "object" ? [node, ...nodesOf(node.props?.children)] : [];
-await scenario({ change: (services) => { services.pluginNavigation = { openBundle: noop }; } }, async ({ slots, services, mount, render, configStore, internals: i }) => {
+await scenario({ config: { costOpen: "page" }, change: (services) => { services.pluginNavigation = { openBundle: noop }; } }, async ({ slots, services, mount, render, configStore, internals: i }) => {
   const entry = slots.find(({ options }) => options.id === "rhine-billing");
   const page = slots.find(({ options }) => options.name === "main");
   assert.equal(page.options.key, "rhine-cost");
@@ -1193,7 +1203,7 @@ await scenario({ change: (services) => {
   services.workspaces.list.emit({ items: [], archivedSessionIds: ["a", "b", "c"] });
   services.sessions.list.emit({ phase: "ready", byId: { a: { updatedAt: 1 }, b: { updatedAt: 3 }, c: { updatedAt: 2 } } });
 } }, async ({ slots, mount, services, advance, internals: { en, deleteRequest } }) => {
-  const entry = slots.find(({ options }) => options.name === "settings.section");
+  const entry = slots.find(({ options }) => options.id === "archived-sessions");
   const instance = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), t: (key) => en[key] });
   const nodes = () => nodesOf(instance.render());
   const button = (danger = false) => nodes().find((node) => node.props?.className === (danger ? "rl-arc-btn rl-arc-btn--danger" : "rl-arc-btn"));
@@ -1235,7 +1245,7 @@ await scenario({ change: (services) => {
 await scenario({ change: (services) => {
   services.workspaces.list.emit({ items: [], archivedSessionIds: ["a"] });
 } }, async ({ slots, mount, services }) => {
-  const entry = slots.find(({ options }) => options.name === "settings.section");
+  const entry = slots.find(({ options }) => options.id === "archived-sessions");
   const instance = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), t: (key) => key }, true);
   let resolve;
   services.workspaces.unarchiveSession = () => new Promise((done) => { resolve = done; });
@@ -1249,7 +1259,7 @@ await scenario({ change: (services) => {
 await scenario({ change: (services) => { delete services.workspaces.unarchiveSession; } }, ({ slots, internals: { compat } }) => {
   assert.equal(problems(compat).archives, "missing");
   assert.equal(compat.getSnapshot().find((issue) => issue.feature === "archives").detail, "workspaces.unarchiveSession");
-  assert.ok(!slots.some(({ options }) => options.name === "settings.section"));
+  assert.ok(!slots.some(({ options }) => options.id === "archived-sessions"));
 });
 
 // One tracker keeps the original first-snapshot and loading semantics with to-do off.
@@ -1453,4 +1463,364 @@ await scenario({ apply: false }, ({ internals: { recordUsage, readDayLog, dayKey
   assert.equal(row.peak + row.offPeak, row.models["deepseek-flash"].cost);
 });
 
-console.log("Client tests passed (locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost report/hour/peak/page, unarchive, shared row-status timing, money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");
+// Noise controls and field-specific numeric validation.
+await scenario({ apply: false }, ({ internals: i }) => {
+  for (const [field, max] of [["notifyMinRun", 600], ["quietFrom", 23], ["quietTo", 23]]) {
+    const spec = i.specs().find((row) => row.field === field);
+    for (const value of [0, 1, max]) {
+      assert.deepEqual(spec.parse(String(value)), { kind: "set", value });
+      assert.equal(i.normalize({ [field]: value })[field], value);
+    }
+    for (const value of [-1, max + 1, 1.5, NaN, Infinity]) {
+      assert.equal(spec.parse(String(value)), undefined);
+      assert.equal(i.normalize({ [field]: value })[field], DEFAULTS[field]);
+    }
+  }
+  const duration = i.specs().find((row) => row.field === "duration");
+  assert.deepEqual(duration.parse("12.5"), { kind: "set", value: 12.5 });
+  assert.equal(duration.parse("15001"), undefined);
+  assert.equal(i.normalize({ duration: 15001 }).duration, DEFAULTS.duration);
+  for (const [hour, from, to, expected] of [[22, 22, 8, true], [7, 22, 8, true], [8, 22, 8, false], [21, 22, 8, false], [10, 9, 17, true], [17, 9, 17, false], [22, 22, 22, false]]) {
+    assert.equal(i.inQuietHours(new Date(2026, 9, 27, hour), from, to), expected);
+  }
+  const first = i.balanceAlertStep({ total: 4, limit: 5 });
+  assert.deepEqual(first, { alert: true, low: true, state: { limit: 5, fired: true } });
+  assert.equal(i.balanceAlertStep({ total: 3, limit: 5, state: first.state }).alert, false);
+  const recovered = i.balanceAlertStep({ total: 5, limit: 5, state: first.state });
+  assert.deepEqual(recovered, { alert: false, low: false, state: { limit: 5, fired: false } });
+  assert.equal(i.balanceAlertStep({ total: 4, limit: 5, state: recovered.state }).alert, true);
+  assert.equal(i.balanceAlertStep({ total: 4, limit: 6, state: first.state }).alert, true);
+  assert.equal(i.balanceAlertStep({ total: -1, limit: 0 }).alert, false);
+  const value = { balances: [{ currency: "CNY", total: "4" }] };
+  for (const status of ["ready", "failed"]) assert.equal(i.balanceLow({ status, value }, 5), true);
+  assert.equal(i.balanceLow({ status: "loading", value }, 5), false);
+  assert.equal(i.balanceLow({ status: "failed", value: null }, 5), false);
+  assert.equal(i.balanceLow({ status: "ready", value }, 4), false);
+  assert.equal(i.balanceLow({ status: "ready", value }, 0), false);
+  const args = { current: "0.2.8", seen: null, hasHistory: false };
+  assert.deepEqual(i.whatsNewFor(args), { kind: "welcome", version: "0.2.8", items: Array.from({ length: 5 }, (_, n) => "wn_welcome_" + (n + 1)) });
+  for (const extra of [{ seen: "0.2.7" }, { hasHistory: true }]) {
+    assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 5 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
+  }
+  for (const extra of [{ current: "" }, { seen: "0.2.8" }, { current: "0.2.9", hasHistory: true }, { current: "toString", hasHistory: true }]) assert.equal(i.whatsNewFor({ ...args, ...extra }), null);
+  for (const [version, count] of Object.entries(i.WHATS_NEW)) for (let n = 1; n <= count; n++) {
+    const key = "wn_" + version.replaceAll(".", "_") + "_" + n;
+    assert.ok(i.zh[key] && i.en[key]);
+  }
+});
+const domNodes = (node) => [node, ...(node.children || []).flatMap(domNodes)];
+const noticeCount = () => domNodes(document.body).filter((node) => node.className === "rl-ntf").length;
+await scenario({ config: { notifySound: false } }, ({ status, services, configStore, notifications }) => {
+  services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Short run" } } });
+  const end = () => { status.emit(new Map([["a", { running: true }]])); status.emit(new Map([["a", { running: false }]])); };
+  end();
+  assert.equal(noticeCount(), 0, "short focused runs are dropped");
+  document.hasFocus = () => false;
+  end();
+  assert.equal(notifications.length, 1, "short away runs still notify");
+  document.hasFocus = () => true;
+  status.emit(new Map([["a", { running: true, pendingInteraction: { kind: "question" } }]]));
+  assert.equal(noticeCount(), 2, "pending interactions always show a card");
+  configStore.emit({ status: "ready", value: { notifyMinRun: 0 } });
+  end();
+  assert.equal(noticeCount(), 3, "zero disables the minimum duration");
+});
+await scenario({ config: { notifySound: false }, change: (services) => {
+  services.uiSession.sessionStatus.emit(new Map([["a", { running: true }]]));
+  services.sessions.list.emit({ phase: "ready", byId: { a: { title: "Already running" } } });
+} }, ({ status }) => {
+  status.emit(new Map([["a", { running: false }]]));
+  assert.equal(noticeCount(), 1, "unknown run starts still notify");
+});
+await scenario({ config: { notifySound: false, notifyCurrent: false, notifyOthers: false } }, ({ status, services, configStore }) => {
+  services.sessions.list.emit({ phase: "ready", byId: { a: {} } });
+  status.emit(new Map([["a", { running: true }]]));
+  configStore.emit({ status: "ready", value: { notifyOthers: true } });
+  status.emit(new Map([["a", { running: false }]]));
+  assert.equal(noticeCount(), 0, "start tracking precedes the scene filter");
+});
+await scenario({ apply: false, config: { quietHours: true, quietFrom: new Date().getHours(), quietTo: (new Date().getHours() + 1) % 24 } }, ({ internals: { registerNotify }, notifications }) => {
+  const disposers = [], savedAudio = Object.getOwnPropertyDescriptor(globalThis, "AudioContext");
+  let sounds = 0;
+  Object.defineProperty(globalThis, "AudioContext", { configurable: true, value: class { constructor() { sounds++; throw new Error("blocked"); } } });
+  const notify = registerNotify({ effect(fn) { disposers.push(fn()); }, inject() {} }, (key) => key);
+  document.hasFocus = () => false;
+  const hour = new Date().getHours();
+  const config = { ...DEFAULTS, quietHours: true, quietFrom: hour, quietTo: (hour + 1) % 24 };
+  try {
+    notify.alert({ id: "balance-low", title: "Balance", status: "Low", open: noop });
+    assert.equal(notifications.length, 0, "alerts also respect quiet hours");
+    assert.equal(sounds, 0);
+    assert.equal(noticeCount(), 1);
+    document.visibilityState = "hidden";
+    notify.alert({ id: "budget", title: "Budget", status: "Over", open: noop });
+    assert.equal(noticeCount(), 1, "hidden cards queue during quiet hours");
+    document.visibilityState = "visible";
+    document.hasFocus = () => true;
+    document.dispatch("visibilitychange");
+    assert.equal(noticeCount(), 2);
+    assert.equal(sounds, 0);
+    notify.preview(config);
+    assert.equal(notifications.length, 1);
+    assert.equal(sounds, 1);
+  } finally {
+    disposers.reverse().forEach((fn) => fn());
+    if (savedAudio) Object.defineProperty(globalThis, "AudioContext", savedAudio); else delete globalThis.AudioContext;
+  }
+});
+await scenario({ config: { quietHours: true, quietFrom: new Date().getHours(), quietTo: (new Date().getHours() + 1) % 24, notifySound: false } }, ({ status, services, notifications }) => {
+  document.hasFocus = () => false;
+  services.sessions.list.emit({ phase: "ready", byId: { a: {} } });
+  status.emit(new Map([["a", { running: true }]]));
+  status.emit(new Map([["a", { running: false }]]));
+  assert.equal(notifications.length, 0);
+  assert.equal(noticeCount(), 1, "quiet hours retain in-app notices");
+});
+
+// Balance crossing alerts share the notice path and low-balance markup.
+{
+  let total = 4, failed = false;
+  await scenario({ config: { balanceAlert: 5, notifyToast: false, notifySound: false }, fetcher: async () => ({ ok: !failed, json: async () => ({ status: "ready", balances: [{ currency: "CNY", total: String(total), granted: "0", toppedUp: String(total) }] }) }) }, async ({ internals: i, slots, mount, render, configStore, notifications, memory, services }) => {
+    document.hasFocus = () => false;
+    await new Promise(setImmediate);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].title, "balanceLow");
+    assert.deepEqual(JSON.parse(memory.get("rhine-splash:balance-alert")), { limit: 5, fired: true });
+    await i.balance.refresh();
+    assert.equal(notifications.length, 1);
+    const entry = slots.find(({ options }) => options.id === "rhine-billing");
+    const widget = mount(entry.Component({}).props.children.type, { ...entry.options.inject(), wide: true, t: (key) => i.en[key] });
+    let card = widget.render();
+    assert.equal(card.props["data-low"], "true");
+    const row = nodesOf(card).find((node) => node.props?.className === "rl-bill-row rl-bill-row--balance");
+    assert.equal(row.props["data-low"], "true");
+    assert.equal(row.props.title, i.fill(i.en.balanceLowTitle, { limit: "¥5.00" }));
+    card.props.onClick();
+    const panel = nodesOf(widget.render()).find((node) => node.props?.className === "rl-cost-balance");
+    assert.equal(panel.props["data-low"], "true");
+    const page = slots.find(({ options }) => options.name === "main");
+    const cost = () => render(page.Component({}).props.children.type, { ...page.options.inject(), t: (key) => i.en[key] });
+    assert.equal(nodesOf(cost()).find((node) => node.props?.["data-kind"] === "balance").props["data-low"], "true");
+    failed = true;
+    await i.balance.refresh();
+    assert.equal(i.balance.getSnapshot().status, "failed");
+    assert.equal(nodesOf(widget.render()).find((node) => node.props?.className === "rl-bill").props["data-low"], "true", "cached failed balance stays marked");
+    failed = false;
+    total = 5;
+    await i.balance.refresh();
+    assert.equal(notifications.length, 1);
+    assert.equal(nodesOf(widget.render()).find((node) => node.props?.className === "rl-bill").props["data-low"], undefined);
+    total = 4;
+    await i.balance.refresh();
+    assert.equal(notifications.length, 2, "recovery re-arms the threshold");
+    configStore.emit({ status: "ready", value: { balanceAlert: 6 } });
+    assert.equal(notifications.length, 3, "changing the live limit checks immediately");
+    configStore.emit({ status: "ready", value: { balanceAlert: 0 } });
+    assert.equal(notifications.length, 3);
+    const saved = globalThis.Notification;
+    let lastBalanceNotice;
+    globalThis.Notification = class { static permission = "granted"; constructor() { lastBalanceNotice = this; } };
+    try {
+      configStore.emit({ status: "ready", value: { balanceAlert: 7 } });
+      lastBalanceNotice.close = noop;
+      lastBalanceNotice.onclick();
+      assert.equal(services.layout.panelInfo.getSnapshot().activePanelId, "rhine-cost");
+    } finally { globalThis.Notification = saved; }
+  });
+}
+await scenario({ config: { balanceAlert: 5, notifyToast: false, notifySound: false }, stored: { "rhine-splash:balance-alert": JSON.stringify({ limit: 5, fired: true }) }, fetcher: async () => ({ ok: true, json: async () => ({ status: "ready", balances: [{ currency: "USD", total: "4", granted: "0", toppedUp: "4" }] }) }) }, async ({ notifications }) => {
+  document.hasFocus = () => false;
+  await new Promise(setImmediate);
+  assert.equal(notifications.length, 0, "a persisted crossing stays quiet");
+});
+
+// The shared form renders in both settings locations, including the update banner.
+await scenario({ config: { version: "0.2.7" }, stored: { "rhine-splash:update-check": JSON.stringify({ at: Date.now(), latest: "0.2.8" }) } }, async ({ slots, internals: i, render, mount, configStore, advance }) => {
+  const plugin = slots.find(({ options }) => options.name === "plugins.row.config");
+  const section = slots.find(({ options }) => options.id === "rhine-splash");
+  assert.equal(section.options.name, "settings.section");
+  assert.equal(section.options.order, 30);
+  assert.equal(section.options.label(), "settingsNav");
+  const injected = plugin.options.inject(), shared = section.options.inject();
+  assert.strictEqual(injected.hooks.rhineSplash, shared.hooks.rhineSplash);
+  assert.strictEqual(injected.hooks.rhineUpdate, i.updates);
+  const props = { ...shared, t: (key) => i.en[key], useRhineSplash: () => shared.hooks.rhineSplash.getSnapshot(), useRhineUpdate: () => i.updates.getSnapshot() };
+  const wrapper = render(section.Component({}).props.children.type, props);
+  assert.equal(wrapper.props.className, "rl-set");
+  const card = nodesOf(wrapper).find((node) => node.type.name === "Card");
+  assert.ok(card);
+  const instance = mount(card.type, card.props, true);
+  const find = (className) => nodesOf(instance.render()).find((node) => node.props?.className === className);
+  assert.equal(find("rl-cfg-update").props.role, "status");
+  assert.equal(find("rl-cfg-update-code").props.children, "dsh-rhine-splash@0.2.8");
+  assert.ok(find("rl-cfg-note").props.children.includes("0.2.7"));
+  const savedNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const savedRange = document.createRange, savedSelection = window.getSelection;
+  try {
+    const copied = [];
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard: { writeText: async (text) => copied.push(text) } } });
+    await find("rl-cfg-update-copy").props.onClick();
+    assert.deepEqual(copied, ["dsh-rhine-splash@0.2.8"]);
+    assert.equal(find("rl-cfg-update-copy").props.children, i.en.updCopied);
+    advance(1500);
+    assert.equal(find("rl-cfg-update-copy").props.children, i.en.updCopy);
+    let selected = false;
+    navigator.clipboard.writeText = async () => { throw new Error("denied"); };
+    document.createRange = () => ({ selectNodeContents() { selected = true; } });
+    window.getSelection = () => ({ removeAllRanges: noop, addRange: noop });
+    await find("rl-cfg-update-copy").props.onClick();
+    assert.equal(selected, true);
+  } finally {
+    if (savedNavigator) Object.defineProperty(globalThis, "navigator", savedNavigator); else delete globalThis.navigator;
+    document.createRange = savedRange;
+    window.getSelection = savedSelection;
+  }
+  configStore.emit({ status: "ready", value: { updateCheck: false } });
+  assert.deepEqual(i.updates.getSnapshot(), { latest: null, newer: false });
+  assert.equal(find("rl-cfg-update"), undefined);
+  configStore.emit({ status: "ready", value: { updateCheck: true } });
+  assert.equal(find("rl-cfg-update").props.role, "status");
+  assert.equal(nodesOf(render(card.type, { ...card.props, useRhineUpdate: undefined })).some((node) => node.props?.className === "rl-cfg-update"), false);
+});
+await scenario({ change: (services) => {
+  services.slots.entries = (name) => name === "settings.section" ? [{ options: { id: "rhine-splash" } }] : [];
+} }, ({ slots }) => { assert.equal(slots.some(({ options }) => options.id === "rhine-splash"), false); });
+for (const [version, latest, newer] of [["0.2.8", "0.2.8", false], ["0.2.9", "0.2.8", false], ["0.2.7", "0.2.8", true]]) {
+  await scenario({ config: { version }, stored: { "rhine-splash:update-check": JSON.stringify({ at: Date.now(), latest }) } }, ({ internals: { updates } }) => {
+    assert.deepEqual(updates.getSnapshot(), { latest, newer });
+  });
+}
+{
+  const requests = [];
+  await scenario({ config: { version: "0.2.7" }, fetcher: async (url, init) => {
+    if (url === "/rhine-splash/update") { requests.push(init); return { ok: true, json: async () => ({ status: "ready", latest: "0.2.8" }) }; }
+    return { ok: true, json: async () => ({ status: "no-key" }) };
+  } }, async ({ internals: { updates }, configStore, memory, advance }) => {
+    await new Promise(setImmediate);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].headers["x-rhine-splash"], "1");
+    assert.deepEqual(updates.getSnapshot(), { latest: "0.2.8", newer: true });
+    assert.equal(JSON.parse(memory.get("rhine-splash:update-check")).latest, "0.2.8");
+    configStore.emit({ status: "ready", value: { updateCheck: false } });
+    configStore.emit({ status: "ready", value: { updateCheck: true } });
+    advance(60000);
+    await new Promise(setImmediate);
+    assert.equal(requests.length, 1, "no repeated request within a day");
+    const savedNow = Date.now;
+    const later = savedNow() + 86400001;
+    try {
+      Date.now = () => later;
+      advance(60000);
+      await new Promise(setImmediate);
+      assert.equal(requests.length, 2, "a new check is allowed after 24 h");
+    } finally { Date.now = savedNow; }
+  });
+}
+for (const config of [{ version: "" }, { version: "0.2.7", updateCheck: false }]) {
+  let calls = 0;
+  await scenario({ config, fetcher: async (url) => { if (url === "/rhine-splash/update") calls++; return { ok: true, json: async () => ({ status: "no-key" }) }; } }, async ({ internals: { updates } }) => {
+    await new Promise(setImmediate);
+    assert.equal(calls, 0);
+    assert.deepEqual(updates.getSnapshot(), { latest: null, newer: false });
+  });
+}
+
+// Resident welcome/update cards wait for the splash and never take focus.
+await scenario({ config: { version: "0.2.8", updateCheck: false } }, ({ slots, mount, advance, memory, internals: i }) => {
+  const overlay = slots.find(({ options }) => options.id === "rhine-whats-new");
+  const card = mount(overlay.Component({}).props.children.type, { ...overlay.options.inject(), t: (key) => i.en[key] }, true);
+  let focused = 0;
+  document.activeElement = { focus() { focused++; } };
+  assert.equal(card.render(), null);
+  advance(1499);
+  assert.equal(card.render(), null);
+  advance(1);
+  const node = card.render();
+  assert.equal(node.props.className, "rl-wn");
+  assert.equal(node.props["data-kind"], "welcome");
+  assert.equal(node.props.role, "dialog");
+  assert.equal(node.props["aria-modal"], "false");
+  assert.equal(nodesOf(node).filter((item) => item.props?.className === "rl-wn-item").length, 5);
+  assert.deepEqual(nodesOf(node).filter((item) => item.props?.className === "rl-wn-num").map((item) => item.props.children), ["01", "02", "03", "04", "05"]);
+  assert.equal(nodesOf(node).some((item) => item.type === "a"), false);
+  assert.equal(nodesOf(node).some((item) => item.props?.className === "rl-wn-btn rl-wn-btn--primary"), false);
+  assert.equal(memory.get("rhine-splash:seen-version"), "0.2.8");
+  assert.equal(focused, 0);
+  document.dispatch("keydown", { key: "Escape" });
+  assert.equal(card.render(), null);
+});
+await scenario({ config: { version: "0.2.8", updateCheck: false }, stored: { "rhine-splash:seen-version": "0.2.7" }, change: (services) => { services.pluginNavigation = { openBundle: noop }; } }, ({ slots, mount, advance, memory, services, internals: i }) => {
+  let splash = true;
+  document.visibilityState = "hidden";
+  document.getElementById = () => splash ? {} : null;
+  const overlay = slots.find(({ options }) => options.id === "rhine-whats-new");
+  const card = mount(overlay.Component({}).props.children.type, { ...overlay.options.inject(), t: (key) => i.en[key] }, true);
+  advance(3000);
+  assert.equal(card.render(), null);
+  assert.equal(memory.get("rhine-splash:seen-version"), "0.2.7");
+  document.visibilityState = "visible";
+  advance(900);
+  assert.equal(card.render(), null);
+  splash = false;
+  advance(1500);
+  const node = card.render();
+  assert.equal(node.props["data-kind"], "update");
+  assert.equal(nodesOf(node).find((item) => item.type === "a").props.rel, "noreferrer");
+  let opened;
+  services.pluginNavigation.openBundle = (id) => { opened = id; };
+  nodesOf(node).find((item) => item.props?.className === "rl-wn-btn rl-wn-btn--primary").props.onClick();
+  assert.equal(opened, "dsh-rhine-splash");
+  assert.equal(card.render(), null);
+});
+await scenario({ config: { version: "0.2.8", updateCheck: false } }, ({ slots, mount, advance, memory, internals: i }) => {
+  document.getElementById = () => ({});
+  const overlay = slots.find(({ options }) => options.id === "rhine-whats-new");
+  const card = mount(overlay.Component({}).props.children.type, { ...overlay.options.inject(), t: (key) => i.en[key] }, true);
+  advance(21000);
+  document.getElementById = () => null;
+  advance(2000);
+  assert.equal(card.render(), null, "give up after 20 s");
+  assert.equal(memory.has("rhine-splash:seen-version"), false);
+});
+for (const stored of [{ "rhine-splash:bill:old": "{}" }, { "rhine-splash:seen-version": "0.2.7" }]) {
+  await scenario({ config: { version: "0.2.9", updateCheck: false }, stored }, ({ memory, slots, render, advance, internals: i }) => {
+    assert.equal(memory.get("rhine-splash:seen-version"), "0.2.9", "remember versions with no release entry too");
+    advance(1500);
+    const overlay = slots.find(({ options }) => options.id === "rhine-whats-new");
+    assert.equal(render(overlay.Component({}).props.children.type, { ...overlay.options.inject(), t: (key) => i.en[key] }), null);
+  });
+}
+
+// Load the actual splash script; reaching createElement proves the gate allowed playback.
+{
+  const splash = readFileSync(new URL("../lib/splash.js", import.meta.url), "utf8");
+  const day = new Date(), today = [day.getFullYear(), String(day.getMonth() + 1).padStart(2, "0"), String(day.getDate()).padStart(2, "0")].join("-");
+  const run = (config, seen, played = false, blocked = false) => {
+    const memory = new Map(seen === undefined ? [] : [["rhine-splash:splash-seen", typeof seen === "string" ? seen : JSON.stringify(seen)]]);
+    let plays = 0;
+    const sandbox = {
+      __RHINE_SPLASH__: { ...config, version: config.version ?? "0.2.8", theme: "light" },
+      document: { body: {}, documentElement: { dataset: {} }, getElementById: () => null, createElement() { plays++; throw new Error("splash-play"); } },
+      sessionStorage: { getItem: () => played ? "1" : null, setItem: noop },
+      localStorage: { getItem(key) { if (blocked) throw new Error("blocked"); return memory.get(key) ?? null; }, setItem(key, value) { if (blocked) throw new Error("blocked"); memory.set(key, value); } },
+      matchMedia: () => ({ matches: false })
+    };
+    try { vm.runInNewContext(splash, sandbox); } catch (error) { assert.equal(error.message, "splash-play"); }
+    return { sandbox, memory, plays };
+  };
+  assert.equal(run({ splashWhen: "daily" }, { day: today, version: "old" }).plays, 0);
+  assert.equal(run({ splashWhen: "daily" }, { day: "2000-01-01", version: "0.2.8" }).plays, 1);
+  assert.equal(run({ splashWhen: "update" }, { day: "2000-01-01", version: "0.2.8" }).plays, 0);
+  assert.equal(run({ splashWhen: "update" }, { day: today, version: "0.2.7" }).plays, 1);
+  assert.equal(run({ splashWhen: "update", version: "" }, { version: "" }).plays, 1);
+  assert.equal(run({ splashWhen: "launch" }, { day: today, version: "0.2.8" }).plays, 1);
+  for (const seen of [undefined, "{", null, [], 1]) assert.equal(run({ splashWhen: "daily" }, seen).plays, 1);
+  assert.equal(run({ splashWhen: "launch" }, undefined, true).plays, 0, "session reload gate is retained");
+  assert.equal(run({ splashWhen: "daily" }, undefined, false, true).plays, 1, "blocked storage does not prevent playback");
+  const state = run({ splashWhen: "daily" }, { day: today, version: "0.2.8" }, true);
+  assert.throws(() => state.sandbox.__rhineSplash.replay({ splashWhen: "daily" }), /splash-play/);
+  assert.throws(() => state.sandbox.__rhineSplash.replay({ splashWhen: "update" }), /splash-play/);
+  assert.deepEqual(JSON.parse(state.memory.get("rhine-splash:splash-seen")), { day: today, version: "0.2.8" });
+}
+
+console.log("Client tests passed (new settings/quiet/min-run, balance alerts/low DOM, updates/cache/banner/copy, settings section, welcome/update lifecycle, splash gates/replay, locale/default contracts, live config/root cleanup, accent controls, live brand/hero/notifications/resume, unconditional slots, cost report/hour/peak/page, unarchive, shared row-status timing, money/budget/loaded-recorder tests, helpers, safe boundaries, degraded services, absence timing, disposal).");
