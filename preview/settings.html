@@ -8,7 +8,8 @@
     /* Stand-ins for the app's tokens and form controls. The page is the real
        SettingsSection (Card) and WhatsNewCard from lib/client.js.
        URL: ?update shows the new-version banner  ?wn=welcome|update opens
-       the what's-new card  ?shot hides the controls  #dark */
+       the what's-new card  ?w=<px> narrows the panel  ?shot hides the
+       controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
       --dsw-radius-xs: 2px; --dsw-radius-sm: 4px; --dsw-radius-md: 6px;
@@ -32,6 +33,12 @@
     .ctl a { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-base); color: inherit; text-decoration: none; }
     .stub-field { display: flex; align-items: center; gap: 16px; min-height: 44px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
     .stub-field label { flex: 1; }
+    /* Harness's SegmentedControl, copied from its CSS module: equal columns
+       that never wrap, which is what a settings row has to make room for. */
+    .stub-seg { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 4px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-interactive-bg-hover); }
+    .stub-seg > span { position: absolute; top: 4px; left: 4px; width: calc((100% - 8px - 2px * (var(--dsh-segment-count) - 1)) / var(--dsh-segment-count)); height: calc(100% - 8px); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-base); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); transform: translate(calc(var(--dsh-segment-index) * (100% + 2px))); }
+    .stub-seg > button { position: relative; z-index: 1; box-sizing: border-box; height: 28px; padding: 0 16px; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 20px; font-weight: 500; white-space: nowrap; }
+    .stub-seg > button[aria-selected=true] { color: var(--dsw-alias-label-primary); }
     .stub-field input, .stub-select { width: 120px; font: inherit; color: inherit; background: transparent; border: 1px solid var(--dsw-alias-border-l2); border-radius: 4px; padding: 3px 6px; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -44,6 +51,7 @@
   <script>
     const params = new URLSearchParams(location.search)
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
+    if (params.has('w')) document.getElementById('panel').style.maxWidth = `${Number(params.get('w')) + 32}px`
     globalThis.__RHINE_SPLASH__ = { version: '0.2.8', uiTheme: true, accent: 'rhine', base: 'warm', quietHours: true }
     globalThis.__RHINE_BRAND__ = {}
 
@@ -54,13 +62,15 @@
     // Minimal stand-ins for the dsh primitives the config page uses.
     const stubs = {
       Switch: ({ checked, label }) => h('input', { type: 'checkbox', defaultChecked: checked, 'aria-label': label }),
-      SegmentedControl: ({ value, options }) => h('select', { className: 'stub-select', defaultValue: value }, options.map((o) => h('option', { key: o.value, value: o.value }, o.label))),
+      SegmentedControl: ({ value, options, label, className }) => h('div', { role: 'tablist', 'aria-label': label, className: `stub-seg ${className || ''}`,
+        style: { '--dsh-segment-count': String(options.length), '--dsh-segment-index': String(options.findIndex((o) => o.value === value)) } },
+        h('span'), options.map((o) => h('button', { key: o.value, type: 'button', role: 'tab', 'aria-selected': o.value === value }, o.label))),
       SettingsValueField: ({ label, text }) => h('div', { className: 'stub-field' }, h('label', null, label), h('input', { defaultValue: text }))
     }
     const P = new Proxy(stubs, { get: (target, key) => target[key] || (() => null) })
     const modules = { react: React, 'react-dom': ReactDOM, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: React.Fragment }, '@deepseek-ai/dsh-client-ui-primitives': P }
     const hook = (value) => (select) => select(value)
-    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+    fetch('../lib/client.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
       const body = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
       const style = document.createElement('style')
       style.textContent = new Function(`return ${body}`)().join('')
@@ -69,7 +79,9 @@
       const { internals } = factory((name) => modules[name])
       const t = (k) => internals.zh[k] ?? k
       const config = { ...internals.normalize({}), quietHours: true }
-      const fields = Object.fromEntries(Object.keys(internals.FIELDS).map((key) => [key, { text: String(config[key] ?? ''), overridden: false }]))
+      // Each field shows what the real page shows: its value, else its default.
+      const format = Object.fromEntries(internals.specs().filter(Boolean).map((spec) => [spec.field, spec.format]))
+      const fields = Object.fromEntries(Object.keys(internals.FIELDS).map((key) => [key, { text: format[key] ? format[key](config[key]) : String(config[key] ?? ''), overridden: false }]))
       const props = {
         t, useRhineSplash: hook({ available: true, writable: true, fields }), useRhineCompat: hook([]),
         useRhineUpdate: hook(params.has('update') ? { latest: '0.2.9', newer: true } : { latest: null, newer: false }),

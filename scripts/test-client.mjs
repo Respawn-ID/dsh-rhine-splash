@@ -637,7 +637,7 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlBase, "warm");
   assert.equal(root.getAttribute("data-rl-rows"), "on");
   const firstHero = root.dataset.rlHero;
-  assert.equal(firstHero, "plain", "the plain sheet is the default background");
+  assert.ok(["plain", "diagonal", "horizon", "grid"].includes(firstHero), "the default random picks a current style");
   let updates = 0;
   const unsubscribe = live.subscribe(() => updates++);
   const emit = (value, status = "ready") => configStore.emit({ status, writable: true, value });
@@ -677,11 +677,7 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlHero, "horizon");
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
   emit({ heroBackground: "random" });
-  const picked = root.dataset.rlHero;
-  assert.ok(["plain", "diagonal", "horizon", "grid"].includes(picked), "random picks a current style");
-  emit({ heroBackground: "grid" });
-  emit({ heroBackground: "random" });
-  assert.equal(root.dataset.rlHero, picked, "the random pick holds for the session");
+  assert.equal(root.dataset.rlHero, firstHero, "the random pick holds for the session");
   emit({ accent: "custom", accentColor: "#abc" });
   assert.equal(root.style.getPropertyValue("--rl-accent-custom"), "#abc");
   unsubscribe();

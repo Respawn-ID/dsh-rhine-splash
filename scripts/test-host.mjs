@@ -310,7 +310,7 @@ assert.equal(resolveConfig({ exit: ' iris ' }).exit, 'iris');
 for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
   assert.equal(resolveConfig({ exit }).exit, 'random');
 }
-assert.equal(DEFAULTS.heroBackground, 'plain');
+assert.equal(DEFAULTS.heroBackground, 'random');
 // The retired slat and full styles both became the diagonal.
 assert.equal(resolveConfig({ heroBackground: 'bars' }).heroBackground, 'diagonal');
 assert.equal(resolveConfig({ heroBackground: ' full ' }).heroBackground, 'diagonal');
