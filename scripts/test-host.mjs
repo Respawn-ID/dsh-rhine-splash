@@ -324,7 +324,7 @@ for (const key of ['weeklyReport', 'notifyCurrent', 'notifyOthers', 'notifyAway'
   for (const value of ['false', 0, null, {}]) assert.equal(resolveConfig({ [key]: value })[key], true);
 }
 for (const [key, choices] of [
-  ['heroBackground', ['plain', 'diagonal', 'horizon', 'grid', 'random', 'off']],
+  ['heroBackground', ['random', 'plain', 'diagonal', 'horizon', 'grid', 'off']],
   ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],
   ['resumeTrigger', ['hidden', 'away', 'always']],
   ['costOpen', ['page', 'popup']],

@@ -337,7 +337,7 @@ Harness 本身只能归档对话，不能删除。安装本插件后，已归档
 | `rowStatus` | `true` | 是否使用莱茵风格的对话行状态点，并在悬停卡片中显示时长，参见[对话行状态](#对话行状态) |
 | `budgetDaily` | `0` | 每日预算，按账户余额的币种计算，最多两位小数；0 表示不提醒，参见[计费与余额](#计费与余额) |
 | `budgetSession` | `0` | 单个对话的预算，规则同上 |
-| `heroBackground` | `random` | 空白页背景：`plain`、`diagonal`、`horizon`、`grid`、`random`（每次启动随机）或 `off`，参见[空白页背景](#空白页背景)；旧值 `bars` 和 `full` 按 `diagonal` 处理 |
+| `heroBackground` | `random` | 空白页背景：`random`（每次启动随机）、`plain`、`diagonal`、`horizon`、`grid` 或 `off`，参见[空白页背景](#空白页背景)；旧值 `bars` 和 `full` 按 `diagonal` 处理 |
 | `resumeEffect` | `random` | 切回动效：`random`（每次随机）、`scan`、`iris`、`glitch` 或 `off`，参见[切回动效](#切回动效) |
 | `resumeTrigger` | `hidden` | 什么时候播放切回动效：`hidden`（最小化或隐藏后）、`away`（离开 30 秒后）或 `always`（每次切回） |
 | `notifyCurrent` | `true` | 正在查看的对话运行结束或等待授权时是否提醒 |

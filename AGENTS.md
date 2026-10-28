@@ -74,7 +74,7 @@ Prefer the UI: **设置 → 莱茵生命主题**, the config page (sidebar **插
 | `todoCenter` | `true` | boolean — to-do center in the sidebar footer (conversations waiting for you, finished unread, running) and the `/todo` command |
 | `rowStatus` | `true` | boolean — Rhine-style sidebar status dots (needs `uiTheme`) and a duration line in the row hover card |
 | `budgetDaily`, `budgetSession` | `0` | numbers, 0–100000, 2 decimals, in the balance currency; 0 turns the reminder off |
-| `heroBackground` | `random` | `plain` \| `diagonal` \| `horizon` \| `grid` \| `random` (per launch among the four, never repeats the last one) \| `off` — blank conversation page background; the retired `bars` and `full` read as `diagonal` |
+| `heroBackground` | `random` | `random` (per launch among the four, never repeats the last one) \| `plain` \| `diagonal` \| `horizon` \| `grid` \| `off` — blank conversation page background; the retired `bars` and `full` read as `diagonal` |
 | `resumeEffect` | `random` | `random` (per play, never repeats the last one) \| `scan` \| `iris` \| `glitch` \| `off` — effect when the window returns from the background |
 | `resumeTrigger` | `hidden` | `hidden` (only after minimize / hide / another Space) \| `away` (back after ≥ 30 s away) \| `always` (every refocus) |
 | `notifyCurrent`, `notifyOthers`, `notifyAway` | `true` | booleans — when Rhine notices fire: for the open conversation, for other conversations while in the app, while the app is unfocused or hidden |
