@@ -7,7 +7,7 @@
   <style>
     /* Stand-ins for the app's tokens and the blank conversation page, so the
        background and resume styles from lib/client.js render as in the app.
-       URL: ?bg=diagonal|horizon|grid  ?fx=scan|iris|glitch  ?at=<ms> freezes every
+       URL: ?bg=plain|diagonal|horizon|grid  ?fx=scan|iris|glitch  ?at=<ms> freezes every
        animation at that time  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
@@ -60,7 +60,7 @@
   <script>
     const params = new URLSearchParams(location.search)
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
-    document.documentElement.dataset.rlHero = params.get('bg') || 'horizon'
+    document.documentElement.dataset.rlHero = params.get('bg') || 'plain'
     // Pull the CSS array and the resume-layer block straight out of
     // lib/client.js so this page never drifts from the shipped code.
     fetch('../lib/client.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
@@ -85,7 +85,7 @@
       const ctl = document.getElementById('ctl')
       if (!params.has('shot')) {
         // Switching replays the entry: off for two frames, then the style.
-        const names = { diagonal: '对角线', horizon: '地平线', grid: '档案网格', off: '关闭' }
+        const names = { plain: '素净', diagonal: '对角线', horizon: '地平线', grid: '档案网格', off: '关闭' }
         for (const [bg, name] of Object.entries(names)) {
           const button = document.createElement('button')
           button.textContent = name
