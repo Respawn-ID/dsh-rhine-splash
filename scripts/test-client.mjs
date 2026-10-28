@@ -617,6 +617,15 @@ await scenario({ apply: false }, ({ internals: { normalize, specs, NEXT_LAUNCH }
   const swatch = specs().find((spec) => spec.field === "accent");
   assert.deepEqual(swatch.parse("ocean"), { kind: "set", value: "ocean" });
   assert.equal(swatch.parse("invalid"), undefined);
+  // Retired blank-page backgrounds read as the diagonal everywhere.
+  const hero = specs().find((spec) => spec.field === "heroBackground");
+  for (const retired of ["bars", "full"]) {
+    assert.equal(hero.format(retired), "diagonal");
+    assert.equal(hero.parse(retired), undefined);
+    assert.equal(normalize({ heroBackground: retired }, previous).heroBackground, "diagonal");
+  }
+  assert.equal(hero.format("horizon"), "horizon");
+  assert.deepEqual(hero.parse("horizon"), { kind: "set", value: "horizon" });
 });
 
 await scenario({}, ({ configStore, internals: { live }, dispose }) => {
@@ -628,6 +637,7 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlBase, "warm");
   assert.equal(root.getAttribute("data-rl-rows"), "on");
   const firstHero = root.dataset.rlHero;
+  assert.ok(["diagonal", "horizon", "grid"].includes(firstHero), "random picks a current style");
   let updates = 0;
   const unsubscribe = live.subscribe(() => updates++);
   const emit = (value, status = "ready") => configStore.emit({ status, writable: true, value });
@@ -661,7 +671,10 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlHero, undefined);
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), "");
   emit({ heroBackground: "bars", code: "LIVE" });
-  assert.equal(root.dataset.rlHero, "bars");
+  assert.equal(root.dataset.rlHero, "diagonal", "a retired style shows the diagonal");
+  assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
+  emit({ heroBackground: "horizon" });
+  assert.equal(root.dataset.rlHero, "horizon");
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
   emit({ heroBackground: "random" });
   assert.equal(root.dataset.rlHero, firstHero);
