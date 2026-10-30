@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.8] - 2026-10-30
+
+新增莱茵实验周报、Harness 设置页入口和空白页背景「素净」「地平线」，费用记录改存到本机文件，并加入开屏播放规则、通知降噪、余额提醒线和更新检查。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.5。
+
 ### 新增
 
 - **莱茵实验周报**：每周第一次打开时弹出上周的周报，包括花费和与前一周、近 4 周平均的对比，每日柱状图和 24 小时时段分布，常用模型、缓存命中率、运行次数和时长，「本周之最」，省钱提示，以及一枚按使用情况评出的「本周评定」印章（同一称号不会连续两周出现，「缓存炼金师」要求未命中比例降到近 4 周的一半以下）。费用页面时间范围右侧的档案签可以随时打开。周报可以保存或复制成只含统计数字的图片，图片底部注明插件名称、安装方法和项目地址；自动弹出可以在「工具」里关闭。运行时长从这个版本开始记录，不计等你授权或回答的时间。
@@ -208,7 +212,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.7...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.4...v0.2.5
