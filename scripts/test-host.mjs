@@ -311,7 +311,7 @@ for (const exit of ['invalid', '', 'fade', 'IRIS', 42, null]) {
   assert.equal(resolveConfig({ exit }).exit, 'random');
 }
 assert.equal(DEFAULTS.heroBackground, 'random');
-assert.equal(DEFAULTS.heroMark, 'thin');
+assert.equal(DEFAULTS.heroMark, 'bold');
 // The retired slat and full styles both became the diagonal.
 assert.equal(resolveConfig({ heroBackground: 'bars' }).heroBackground, 'diagonal');
 assert.equal(resolveConfig({ heroBackground: ' full ' }).heroBackground, 'diagonal');
@@ -326,7 +326,7 @@ for (const key of ['weeklyReport', 'notifyCurrent', 'notifyOthers', 'notifyAway'
 }
 for (const [key, choices] of [
   ['heroBackground', ['random', 'plain', 'diagonal', 'horizon', 'grid', 'off']],
-  ['heroMark', ['thin', 'bold']],
+  ['heroMark', ['bold', 'thin']],
   ['resumeEffect', ['random', 'scan', 'iris', 'glitch', 'off']],
   ['resumeTrigger', ['hidden', 'away', 'always']],
   ['costOpen', ['page', 'popup']],
