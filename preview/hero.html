@@ -7,7 +7,7 @@
   <style>
     /* Stand-ins for the app's tokens and the blank conversation page, so the
        background and resume styles from lib/client.js render as in the app.
-       URL: ?bg=plain|diagonal|horizon|grid  ?mark=thin  ?fx=scan|iris|glitch  ?at=<ms> freezes every
+       URL: ?bg=plain|diagonal|horizon|grid  ?mark=bold  ?fx=scan|iris|glitch  ?at=<ms> freezes every
        animation at that time  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
@@ -61,7 +61,7 @@
     const params = new URLSearchParams(location.search)
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
     document.documentElement.dataset.rlHero = params.get('bg') || 'plain'
-    if (params.get('mark') === 'thin') document.documentElement.dataset.rlMark = 'thin'
+    if (params.get('mark') === 'bold') document.documentElement.dataset.rlMark = 'bold'
     // Pull the CSS array and the resume-layer block straight out of
     // lib/client.js so this page never drifts from the shipped code.
     fetch('../lib/client.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
@@ -97,10 +97,10 @@
           ctl.append(button)
         }
         const mark = document.createElement('button')
-        const markName = () => { mark.textContent = document.documentElement.dataset.rlMark === 'thin' ? '水印：细体' : '水印：粗体' }
+        const markName = () => { mark.textContent = document.documentElement.dataset.rlMark === 'bold' ? '水印：加粗' : '水印：原版' }
         mark.onclick = () => {
-          if (document.documentElement.dataset.rlMark === 'thin') delete document.documentElement.dataset.rlMark
-          else document.documentElement.dataset.rlMark = 'thin'
+          if (document.documentElement.dataset.rlMark === 'bold') delete document.documentElement.dataset.rlMark
+          else document.documentElement.dataset.rlMark = 'bold'
           markName()
         }
         markName()
