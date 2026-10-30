@@ -617,6 +617,15 @@ await scenario({ apply: false }, ({ internals: { normalize, specs, NEXT_LAUNCH }
   const swatch = specs().find((spec) => spec.field === "accent");
   assert.deepEqual(swatch.parse("ocean"), { kind: "set", value: "ocean" });
   assert.equal(swatch.parse("invalid"), undefined);
+  // Retired blank-page backgrounds read as the diagonal everywhere.
+  const hero = specs().find((spec) => spec.field === "heroBackground");
+  for (const retired of ["bars", "full"]) {
+    assert.equal(hero.format(retired), "diagonal");
+    assert.equal(hero.parse(retired), undefined);
+    assert.equal(normalize({ heroBackground: retired }, previous).heroBackground, "diagonal");
+  }
+  assert.equal(hero.format("horizon"), "horizon");
+  assert.deepEqual(hero.parse("horizon"), { kind: "set", value: "horizon" });
 });
 
 await scenario({}, ({ configStore, internals: { live }, dispose }) => {
@@ -628,6 +637,7 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlBase, "warm");
   assert.equal(root.getAttribute("data-rl-rows"), "on");
   const firstHero = root.dataset.rlHero;
+  assert.ok(["plain", "diagonal", "horizon", "grid"].includes(firstHero), "the default random picks a current style");
   let updates = 0;
   const unsubscribe = live.subscribe(() => updates++);
   const emit = (value, status = "ready") => configStore.emit({ status, writable: true, value });
@@ -661,15 +671,23 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   assert.equal(root.dataset.rlHero, undefined);
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), "");
   emit({ heroBackground: "bars", code: "LIVE" });
-  assert.equal(root.dataset.rlHero, "bars");
+  assert.equal(root.dataset.rlHero, "diagonal", "a retired style shows the diagonal");
+  assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
+  emit({ heroBackground: "horizon" });
+  assert.equal(root.dataset.rlHero, "horizon");
+  assert.equal(root.dataset.rlMark, "bold", "the bold wordmark is the default");
+  emit({ heroMark: "thin" });
+  assert.equal(root.dataset.rlMark, undefined, "the v0.2.7 wordmark needs no attribute");
+  emit({ heroMark: "bold" });
+  assert.equal(root.dataset.rlMark, "bold");
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
   emit({ heroBackground: "random" });
-  assert.equal(root.dataset.rlHero, firstHero);
+  assert.equal(root.dataset.rlHero, firstHero, "the random pick holds for the session");
   emit({ accent: "custom", accentColor: "#abc" });
   assert.equal(root.style.getPropertyValue("--rl-accent-custom"), "#abc");
   unsubscribe();
   dispose();
-  for (const name of ["data-rl-ui", "data-rl-rows", "data-rl-accent", "data-rl-base", "data-rl-hero"]) assert.equal(root.getAttribute(name), null);
+  for (const name of ["data-rl-ui", "data-rl-rows", "data-rl-accent", "data-rl-base", "data-rl-hero", "data-rl-mark"]) assert.equal(root.getAttribute(name), null);
   assert.equal(root.style.getPropertyValue("--rl-accent-custom"), "");
   emit({ accent: "crimson" });
   assert.equal(root.dataset.rlAccent, undefined, "disposed config watch removed");
@@ -2326,7 +2344,7 @@ await scenario({ apply: false }, ({ internals: i }) => {
   const row = (cost, extra = {}, tokens = { miss: 100, hit: 0, out: 10 }) => ({ models: { 'deepseek-flash': { cost, ...tokens } }, sessions: { a: cost }, ...extra });
   const report = (days, runDays = {}, at = now) => i.weeklyReport({ log: { v: 1, currency: 'CNY', days }, runs: { ...runs, days: runDays }, weekStart: start, now: at });
   const blank = report({});
-  for (const key of ['hours', 'nightShare', 'weekendShare', 'topDay', 'topConversation', 'offPeakSaved', 'average4', 'vsAverage', 'badge']) assert.equal(blank[key], null, key);
+  for (const key of ['hours', 'nightShare', 'weekendShare', 'topDay', 'topConversation', 'offPeakSaved', 'average4', 'vsAverage', 'hitRate4', 'badge']) assert.equal(blank[key], null, key);
   for (const key of ['streak', 'tokens', 'cacheSaved', 'books']) assert.equal(blank[key], 0, key);
   assert.deepEqual(i.weeklyBadgeText(blank, (key) => i.zh[key]), { name: '', reason: '' });
   const hours = Array(24).fill(0); hours[23] = 1; hours[5] = 1; hours[6] = 2;
@@ -2361,7 +2379,7 @@ await scenario({ apply: false }, ({ internals: i }) => {
     ['night', { ...allWeek, '2026-10-19': row(10, { hours }) }, marathon],
     ['marathon', allWeek, marathon],
     ['allWeek', allWeek, {}],
-    ['cache', { '2026-10-19': row(1, { peak: 0, offPeak: 1 }, { hit: 900, miss: 100, out: 0 }) }, {}],
+    ['cache', { '2026-10-12': row(1, {}, { hit: 700, miss: 300, out: 0 }), '2026-10-19': row(1, { peak: 0, offPeak: 1 }, { hit: 900, miss: 100, out: 0 }) }, {}],
     ['offPeak', { '2026-10-25': row(2, { peak: 1, offPeak: 1 }) }, {}],
     ['weekend', { '2026-10-12': row(1), '2026-10-25': row(2) }, {}],
     ['surge', { '2026-10-12': row(2), '2026-10-19': row(3) }, {}],
@@ -2377,6 +2395,19 @@ await scenario({ apply: false }, ({ internals: i }) => {
     }
   }
   assert.deepEqual(report({}, marathon).badge, { key: 'marathon', values: { ms: 1800000 } });
+  // The cache badge needs a baseline and at most half its misses.
+  const cached = (before) => report({ '2026-10-12': row(1, {}, before), '2026-10-19': row(1, {}, { hit: 960, miss: 40, out: 0 }) });
+  assert.equal(report({ '2026-10-19': row(1, {}, { hit: 990, miss: 10, out: 0 }) }).badge.key, 'steady', 'no baseline, no cache badge');
+  assert.equal(cached({ hit: 930, miss: 70, out: 0 }).badge.key, 'steady', '4% misses against 7% is not half');
+  assert.deepEqual(cached({ hit: 920, miss: 80, out: 0 }).badge, { key: 'cache', values: { rate: 0.96, base: 0.92 } });
+  assert.equal(i.weeklyBadgeText(cached({ hit: 920, miss: 80, out: 0 }), (key) => i.zh[key]).reason, '缓存命中率 96%，近 4 周为 92%');
+  // No badge two weeks running: last week's award passes to the next one earned.
+  const nightly = (cost) => row(cost, { hours });
+  assert.equal(i.weeklyReport({ log: { v: 1, currency: 'CNY', days: { '2026-10-12': nightly(1) } }, runs, weekStart: '2026-10-12', now }).badge.key, 'night');
+  assert.equal(report({ '2026-10-12': nightly(1), ...allWeek, '2026-10-19': nightly(1) }).badge.key, 'allWeek', 'night again passes to all week');
+  assert.equal(report({ '2026-10-12': nightly(1), '2026-10-19': nightly(1) }).badge.key, 'steady', 'nothing else earned');
+  assert.equal(report({ '2026-10-05': nightly(1), '2026-10-12': nightly(1), '2026-10-19': nightly(1) }).badge.key, 'night', 'alternates when earned every week');
+  assert.equal(report({ '2026-10-12': row(1), '2026-10-19': row(1) }).badge.key, 'steady', 'the fallback may repeat');
   assert.equal(report({ '2026-10-19': row(1), '2026-10-20': row(1) }, {}, new Date(2026, 9, 20)).badge.key, 'steady');
   assert.equal(report({ '2026-10-19': row(1), '2026-10-20': row(1), '2026-10-21': row(1) }, {}, new Date(2026, 9, 21)).badge.key, 'allWeek');
   assert.equal(report(allWeek, {}, new Date(2026, 9, 27)).badge.key, 'allWeek');

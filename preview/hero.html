@@ -7,7 +7,7 @@
   <style>
     /* Stand-ins for the app's tokens and the blank conversation page, so the
        background and resume styles from lib/client.js render as in the app.
-       URL: ?bg=grid|bars|full  ?fx=scan|iris|glitch  ?at=<ms> freezes every
+       URL: ?bg=plain|diagonal|horizon|grid  ?mark=bold  ?fx=scan|iris|glitch  ?at=<ms> freezes every
        animation at that time  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
@@ -40,7 +40,7 @@
     .chips { display: flex; gap: 22px; padding-left: 12px; color: var(--dsw-alias-label-secondary); }
     .card { height: 116px; box-sizing: border-box; padding: 14px 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px;
       background: var(--card); color: var(--dsw-alias-label-tertiary); box-shadow: 0 2px 10px rgba(0, 0, 0, .04); }
-    .ctl { position: fixed; right: 16px; top: 12px; z-index: 2147483647; display: flex; gap: 6px; }
+    .ctl { position: fixed; right: 16px; top: 12px; z-index: 2147483647; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: calc(100% - 32px); }
     .ctl button { font: inherit; padding: 4px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--card); color: inherit; cursor: pointer; }
   </style>
 </head>
@@ -60,10 +60,11 @@
   <script>
     const params = new URLSearchParams(location.search)
     if (location.hash === '#dark') document.body.setAttribute('data-ds-dark-theme', '')
-    document.documentElement.dataset.rlHero = params.get('bg') || 'grid'
+    document.documentElement.dataset.rlHero = params.get('bg') || 'plain'
+    if (params.get('mark') === 'bold') document.documentElement.dataset.rlMark = 'bold'
     // Pull the CSS array and the resume-layer block straight out of
     // lib/client.js so this page never drifts from the shipped code.
-    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+    fetch('../lib/client.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
       const css = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
       const style = document.createElement('style')
       style.textContent = new Function(`return ${css}`)().join('')
@@ -84,12 +85,26 @@
       }
       const ctl = document.getElementById('ctl')
       if (!params.has('shot')) {
-        for (const bg of ['grid', 'bars', 'full', 'off']) {
+        // Switching replays the entry: off for two frames, then the style.
+        const names = { plain: '素净', diagonal: '对角线', horizon: '地平线', grid: '档案网格', off: '关闭' }
+        for (const [bg, name] of Object.entries(names)) {
           const button = document.createElement('button')
-          button.textContent = bg
-          button.onclick = () => { document.documentElement.dataset.rlHero = bg }
+          button.textContent = name
+          button.onclick = () => {
+            delete document.documentElement.dataset.rlHero
+            requestAnimationFrame(() => requestAnimationFrame(() => { if (bg !== 'off') document.documentElement.dataset.rlHero = bg }))
+          }
           ctl.append(button)
         }
+        const mark = document.createElement('button')
+        const markName = () => { mark.textContent = document.documentElement.dataset.rlMark === 'bold' ? '水印：加粗' : '水印：细体' }
+        mark.onclick = () => {
+          if (document.documentElement.dataset.rlMark === 'bold') delete document.documentElement.dataset.rlMark
+          else document.documentElement.dataset.rlMark = 'bold'
+          markName()
+        }
+        markName()
+        ctl.append(mark)
         for (const kind of Object.keys(RESUME_MS)) {
           const button = document.createElement('button')
           button.textContent = `▶ ${kind}`
