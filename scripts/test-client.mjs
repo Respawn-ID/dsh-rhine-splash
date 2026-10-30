@@ -676,11 +676,11 @@ await scenario({}, ({ configStore, internals: { live }, dispose }) => {
   emit({ heroBackground: "horizon" });
   assert.equal(root.dataset.rlHero, "horizon");
   assert.equal(root.dataset.rlMark, undefined, "the original wordmark needs no attribute");
-  emit({ heroMark: "thin" });
-  assert.equal(root.dataset.rlMark, "thin");
   emit({ heroMark: "bold" });
-  assert.equal(root.dataset.rlMark, undefined);
+  assert.equal(root.dataset.rlMark, "bold");
   emit({ heroMark: "thin" });
+  assert.equal(root.dataset.rlMark, undefined);
+  emit({ heroMark: "bold" });
   assert.equal(root.style.getPropertyValue("--rl-hb-label"), '"LIVE · TERMINAL READY"');
   emit({ heroBackground: "random" });
   assert.equal(root.dataset.rlHero, firstHero, "the random pick holds for the session");
