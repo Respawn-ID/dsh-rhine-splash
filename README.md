@@ -8,7 +8,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 [![Release](https://img.shields.io/github/v/release/Respawn-ID/dsh-rhine-splash?label=release)](https://github.com/Respawn-ID/dsh-rhine-splash/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.3-e46f24.svg)](#环境要求)
+[![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-0.2.1--rc.5-e46f24.svg)](#环境要求)
 
 [安装](#安装) · [界面主题与品牌标志](#界面主题与品牌标志) · [附加功能](#附加功能) · [配置](#配置) · [开屏动画](#开屏动画) · [常见问题](#常见问题) · [开发](#开发) · [更新日志](CHANGELOG.md)
 
@@ -33,7 +33,7 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 ## 环境要求
 
-- DeepSeek Harness 桌面版（macOS、Windows）或网页版 0.2.1-rc.3。
+- DeepSeek Harness 桌面版（macOS、Windows）或网页版 0.2.1-rc.5。
 - 在网页版中通过命令行安装时，终端里需要能使用 `pnpm`。
 
 ## 安装
@@ -60,10 +60,10 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 上面第 2 步也可以粘贴下面任意一行。
 
-安装指定版本，把 `0.2.7` 换成你要的版本号：
+安装指定版本，把 `0.2.8` 换成你要的版本号：
 
 ```text
-dsh-rhine-splash@0.2.7
+dsh-rhine-splash@0.2.8
 ```
 
 从 GitHub 安装：
@@ -72,7 +72,7 @@ dsh-rhine-splash@0.2.7
 github:Respawn-ID/dsh-rhine-splash
 ```
 
-npm 和 GitHub 都装不上时，从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，粘贴这个文件的完整路径，例如 `/Users/<用户名>/Downloads/dsh-rhine-splash-0.2.7.tgz`。
+npm 和 GitHub 都装不上时，从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，粘贴这个文件的完整路径，例如 `/Users/<用户名>/Downloads/dsh-rhine-splash-0.2.8.tgz`。
 
 要修改代码时，克隆本仓库，粘贴仓库文件夹的完整路径。
 

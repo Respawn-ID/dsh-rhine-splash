@@ -1518,7 +1518,7 @@ await scenario({ apply: false }, ({ internals: i }) => {
   const args = { current: "0.2.8", seen: null, hasHistory: false };
   assert.deepEqual(i.whatsNewFor(args), { kind: "welcome", version: "0.2.8", items: Array.from({ length: 5 }, (_, n) => "wn_welcome_" + (n + 1)) });
   for (const extra of [{ seen: "0.2.7" }, { hasHistory: true }]) {
-    assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 6 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
+    assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 7 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
   }
   for (const extra of [{ current: "" }, { seen: "0.2.8" }, { current: "0.2.9", hasHistory: true }, { current: "toString", hasHistory: true }]) assert.equal(i.whatsNewFor({ ...args, ...extra }), null);
   for (const [version, count] of Object.entries(i.WHATS_NEW)) for (let n = 1; n <= count; n++) {
