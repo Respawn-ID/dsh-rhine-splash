@@ -7,7 +7,8 @@
   <style>
     /* Stand-ins for the app's tokens, so the to-do styles from lib/client.js
        render as in the app. The markup mirrors TodoWidget. URL:
-       ?mode=bar|rail  ?nobill  ?empty  ?closed  ?at=<ms> freezes every animation
+       ?mode=bar|rail  ?nobill  ?empty  ?closed  ?dshm adds dsh-m's footer rules and its
+       Plugin market entry (they share the slot)  ?at=<ms> freezes every animation
        at that time  ?shot hides the controls  #dark */
     body {
       --dsw-font-family: -apple-system, "PingFang SC", sans-serif;
@@ -95,13 +96,24 @@
     }
     // Pull the CSS array straight out of lib/client.js so this page never
     // drifts from the shipped styles.
-    fetch('../lib/client.js').then((r) => r.text()).then((src) => {
+    fetch('../lib/client.js', { cache: 'no-store' }).then((r) => r.text()).then((src) => {
       const css = src.slice(src.indexOf('const CSS = [') + 'const CSS = '.length, src.indexOf('].join("");') + 1)
       const style = document.createElement('style')
       style.textContent = new Function(`return ${css}`)().join('')
       document.head.append(style)
 
-      const foot = document.getElementById('foot')
+      // Harness renders the footer entries inside a display:contents slot
+      // wrapper in its footer row; dsh-m (?dshm) restyles that wrapper.
+      const foot = el('div', { 'data-slot': 'sidebar.footer.action', style: 'display:contents' })
+      document.getElementById('foot').append(foot)
+      if (params.has('dshm')) {
+        // dsh-m 0.11.11 (src/client/styles.js), verbatim, loaded before ours
+        // (the order in issue #3: ours then win ties of equal specificity).
+        const dshm = document.createElement('style')
+        dshm.textContent = '.dshm-entry{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:calc(100% + 4px);height:42px;margin:4px -2px;padding:0 10px 0 8px;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-primary,inherit);font:inherit;font-size:14px;line-height:22px;cursor:pointer;overflow:hidden}'
+          + '[data-slot="sidebar.footer.action"]{display:flex!important;flex-direction:column;width:100%;min-width:0}[data-slot="sidebar.footer.action"]>*{flex:none;min-width:0}'
+        document.head.prepend(dshm)
+      }
       const trigger = el('button', { type: 'button', class: 'rl-todo-btn', 'data-mode': mode, 'data-tone': tone,
         'data-running': groups.running.length ? 'true' : undefined, 'data-open': params.has('closed') ? undefined : 'true',
         'aria-label': `打开待办 · ${count} 项待处理` }, mode === 'rail' ? [
@@ -122,6 +134,7 @@
           el('span', { class: 'rl-bill-tag', text: '闲时' }),
         ]))
       }
+      if (params.has('dshm') && mode === 'bar') foot.append(el('button', { type: 'button', class: 'dshm-entry', text: '插件市场' }))
 
       if (!params.has('closed')) {
         const sections = ['pending', 'done', 'running'].filter((kind) => groups[kind].length).map((kind) => el('section', { class: 'rl-todo-group', 'data-kind': kind }, [
