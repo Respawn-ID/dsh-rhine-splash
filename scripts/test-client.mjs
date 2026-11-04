@@ -1520,7 +1520,7 @@ await scenario({ apply: false }, ({ internals: i }) => {
   for (const extra of [{ seen: "0.2.7" }, { hasHistory: true }]) {
     assert.deepEqual(i.whatsNewFor({ ...args, ...extra }), { kind: "update", version: "0.2.8", items: Array.from({ length: 7 }, (_, n) => "wn_0_2_8_" + (n + 1)) });
   }
-  for (const extra of [{ current: "" }, { seen: "0.2.8" }, { current: "0.2.9", hasHistory: true }, { current: "toString", hasHistory: true }]) assert.equal(i.whatsNewFor({ ...args, ...extra }), null);
+  for (const extra of [{ current: "" }, { seen: "0.2.8" }, { current: "0.3.0", hasHistory: true }, { current: "toString", hasHistory: true }]) assert.equal(i.whatsNewFor({ ...args, ...extra }), null);
   for (const [version, count] of Object.entries(i.WHATS_NEW)) for (let n = 1; n <= count; n++) {
     const key = "wn_" + version.replaceAll(".", "_") + "_" + n;
     assert.ok(i.zh[key] && i.en[key]);
@@ -1801,8 +1801,8 @@ await scenario({ config: { version: "0.2.8", updateCheck: false } }, ({ slots, m
   assert.equal(memory.has("rhine-splash:seen-version"), false);
 });
 for (const stored of [{ "rhine-splash:bill:old": "{}" }, { "rhine-splash:seen-version": "0.2.7" }]) {
-  await scenario({ config: { version: "0.2.9", updateCheck: false }, stored }, ({ memory, slots, render, advance, internals: i }) => {
-    assert.equal(memory.get("rhine-splash:seen-version"), "0.2.9", "remember versions with no release entry too");
+  await scenario({ config: { version: "0.3.0", updateCheck: false }, stored }, ({ memory, slots, render, advance, internals: i }) => {
+    assert.equal(memory.get("rhine-splash:seen-version"), "0.3.0", "remember versions with no release entry too");
     advance(1500);
     const overlay = slots.find(({ options }) => options.id === "rhine-whats-new");
     assert.equal(render(overlay.Component({}).props.children.type, { ...overlay.options.inject(), t: (key) => i.en[key] }), null);

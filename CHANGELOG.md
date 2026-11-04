@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.9] - 2026-11-04
+
+修复与插件市场 dsh-m 同时启用时侧栏底部的错位。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.5。
+
 ### 修复
 
 - **与 dsh-m 同时启用时侧栏底部错位**（[#3](https://github.com/Respawn-ID/dsh-rhine-splash/issues/3)）：待办条不再被拉成一张竖长卡片，计费卡片也不再挤到右侧被裁掉；待办条、计费卡片和「插件市场」入口恢复上下排列。
@@ -216,7 +220,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.8...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.5...v0.2.6
