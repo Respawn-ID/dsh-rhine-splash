@@ -149,6 +149,39 @@ function archiveHost({ root, archived = [], live = [], stored = [], failCache = 
     rmSync(base, { recursive: true, force: true });
   }
 }
+// TOCTOU race guard: unarchiving or loading a session during async lookup cancels the delete before touching disk.
+{
+  const base = mkdtempSync(join(tmpdir(), 'rhine-archives-race-'));
+  const root = join(base, 'sessions');
+  makeDir(root);
+  try {
+    const unarchivedDir = join(root, 'ws', 'session-unarchived');
+    const openedDir = join(root, 'ws', 'session-opened');
+    makeDir(unarchivedDir, { recursive: true });
+    makeDir(openedDir, { recursive: true });
+    const live = [];
+    const host = archiveHost({
+      root, archived: ['session-unarchived', 'session-opened'], live,
+      stored: [{ id: 'session-unarchived', cwd: 'ws' }, { id: 'session-opened', cwd: 'ws' }],
+    });
+    const persistence = host.ctx.get('sessionPersistence');
+    const origList = persistence.list;
+    let mode = 'unarchive';
+    persistence.list = async () => {
+      const list = await origList();
+      if (mode === 'unarchive') host.registry.archivedSessionIds = host.registry.archivedSessionIds.filter((x) => x !== 'session-unarchived');
+      if (mode === 'load') live.push('session-opened');
+      return list;
+    };
+    assert.deepEqual(await host.request({ sessionId: 'session-unarchived' }), { status: 409, value: { status: 'not-archived' } });
+    assert.equal(existsSync(unarchivedDir), true, 'unarchived mid-flight must stay on disk');
+    mode = 'load';
+    assert.deepEqual(await host.request({ sessionId: 'session-opened' }), { status: 202, value: { status: 'scheduled' } });
+    assert.equal(existsSync(openedDir), true, 'opened mid-flight must stay on disk and schedule instead');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+}
 // Queued deletions run at the next start: loaded ones wait again, unarchived ones are cancelled.
 {
   const base = mkdtempSync(join(tmpdir(), 'rhine-archives-'));
@@ -277,6 +310,10 @@ for (const [accent, [light, dark]] of Object.entries(ACCENTS)) {
   assert.equal(config.accentLight, light);
   assert.equal(config.accentDark, dark);
   assert.equal(themeSource.match(new RegExp('--rl-accent-' + accent + ':\\s*(#[0-9a-f]+)'))?.[1], light);
+}
+for (const step of ['55', '90', '310']) {
+  const matches = themeSource.match(new RegExp(`--dsw-static-neutral-bluish-${step}:\\s*#[0-9a-f]{6}`, 'g')) || [];
+  assert.equal(matches.length, 2, `warm and neutral base palettes both override neutral-bluish-${step}`);
 }
 for (const [color, light, dark] of [['#abc', '#aabbcc', '#bbc9d6'], ['#123456', '#123456', '#415d78'], ['#ABCDEF', '#abcdef', '#bcd7f2']]) {
   const custom = resolveConfig({ accent: 'custom', accentColor: color });
