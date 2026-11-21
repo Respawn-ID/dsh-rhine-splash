@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+## [0.2.10] - 2026-11-21
+
+适配 DeepSeek Harness 0.2.2，修复推理强度弹窗与「立即回答」在路由模型上的显示和竞态问题，并补齐设置页徽章图标与插画色阶。适用于 DeepSeek Harness 桌面版和网页版 0.2.1-rc.5 及 0.2.2。
+
 ### 变更
 
 - 为「设置 → 莱茵生命主题」通过 DeepSeek Harness 0.2.2 新增的 `settings.section.icon` 槽位注册切角莱茵徽章图标（选中态中心菱形实心以保证浅色自定义强调色对比度；0.2.1 自动保持默认图标）。
@@ -233,7 +237,8 @@
 - 配置项：标题、副标题、编号、强调色、主题、退场动画、时长、最长等待、可跳过与刷新重播。
 - 提供面向用户的 README 与面向 AI agent 的 `AGENTS.md` 安装说明。
 
-[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.9...HEAD
+[未发布]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.10...HEAD
+[0.2.10]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/Respawn-ID/dsh-rhine-splash/compare/v0.2.6...v0.2.7

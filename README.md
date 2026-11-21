@@ -60,10 +60,10 @@ DeepSeek Harness 的莱茵生命风格主题，包括开屏动画、界面配色
 
 上面第 2 步也可以粘贴下面任意一行。
 
-安装指定版本，把 `0.2.9` 换成你要的版本号：
+安装指定版本，把 `0.2.10` 换成你要的版本号：
 
 ```text
-dsh-rhine-splash@0.2.9
+dsh-rhine-splash@0.2.10
 ```
 
 从 GitHub 安装：
@@ -72,7 +72,7 @@ dsh-rhine-splash@0.2.9
 github:Respawn-ID/dsh-rhine-splash
 ```
 
-npm 和 GitHub 都装不上时，从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，粘贴这个文件的完整路径，例如 `/Users/<用户名>/Downloads/dsh-rhine-splash-0.2.9.tgz`。
+npm 和 GitHub 都装不上时，从 [Releases](https://github.com/Respawn-ID/dsh-rhine-splash/releases) 下载 `dsh-rhine-splash-<版本>.tgz`，粘贴这个文件的完整路径，例如 `/Users/<用户名>/Downloads/dsh-rhine-splash-0.2.10.tgz`。
 
 要修改代码时，克隆本仓库，粘贴仓库文件夹的完整路径。
 
