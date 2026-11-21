@@ -51,7 +51,7 @@ function store(value) {
   };
 }
 
-async function scenario({ config = {}, change = noop, apply = true, stored = {}, fetcher } = {}, check = noop) {
+async function scenario({ config = {}, change = noop, apply = true, stored = {}, fetcher, primitives: primOverrides = {} } = {}, check = noop) {
   const timers = new Map();
   let timerId = 0, now = 0;
   const setTimer = (fn, delay = 0) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; };
@@ -96,15 +96,16 @@ async function scenario({ config = {}, change = noop, apply = true, stored = {},
   const primitives = new Proxy({
     SettingsFormModel,
     settingsNumberField: (field) => ({ field, format: (value) => String(value ?? DEFAULTS[field]), parse: (text) => ({ kind: "set", value: Number(text) }) }),
-    settingsTextField: (field) => ({ field, format: (value) => value ?? DEFAULTS[field], parse: (text) => ({ kind: "set", value: text }) })
-  }, { get: (target, key) => target[key] ?? noop });
+    settingsTextField: (field) => ({ field, format: (value) => value ?? DEFAULTS[field], parse: (text) => ({ kind: "set", value: text }) }),
+    ...primOverrides
+  }, { get: (target, key) => Object.hasOwn(target, key) ? target[key] : noop });
   const modules = { react, "react-dom": { createPortal: (child) => child }, "react/jsx-runtime": { jsx, jsxs: jsx }, "@deepseek-ai/dsh-client-ui-primitives": primitives };
   let factory;
   const windowEvents = element();
   const notifications = [];
   const memory = new Map(Object.entries(stored));
   const globals = {
-    window: globalThis, focus: noop, location: globalThis.location || { origin: "http://localhost:4173" },
+    window: globalThis, innerWidth: 1200, innerHeight: 800, focus: noop, location: globalThis.location || { origin: "http://localhost:4173" },
     document: { ...element(), createElement: element, head: element(), body: element(), documentElement: element(), visibilityState: "visible", hasFocus: () => true, getElementById: () => null },
     matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
     requestAnimationFrame: (fn) => setTimer(fn, 16), cancelAnimationFrame: (id) => timers.delete(id),
@@ -337,6 +338,7 @@ await scenario({}, async ({ slots, commands, internals: { compat, FIELDS }, adva
     "sidebar.footer.action": { "rhine-billing": "billing", "rhine-todo": "todo" },
     "main": "cost", "sidebar.session.row.hover": "todo",
     "conversation.input.right": "effort", "plugins.row.config": "settings", "settings.section": { "archived-sessions": "archives", "rhine-splash": "settings" },
+    "settings.section.icon": { "rhine-splash": "settings" },
     "sidebar.workspaces.session.menu.item": "archives", "shell.overlay": { "rhine-delete-confirm": "archives", "rhine-whats-new": "whatsNew", "rhine-weekly": "weekly" }, "sidebar.brand.mark": "brand", "sidebar.brand.name": "brand", "conversation.hero.brand.mark": "brand"
   };
   for (const { options, Component } of slots) {
@@ -415,6 +417,93 @@ await scenario({}, ({ slots, render, memory, windowEvents, internals: { instantB
   assert.doesNotThrow(() => windowEvents.dispatch("keydown", { altKey: true, code: "KeyT", preventDefault() { throw new Error("swallowed"); } }));
 });
 
+// Harness 0.2.2 removed primitives.useAnchoredPosition: fallback measures rects, observes resizes, flips, and cleans up.
+await scenario({ primitives: { useAnchoredPosition: undefined } }, ({ mount, windowEvents, advance, internals: { useAnchoredPosition } }) => {
+  const savedRO = globalThis.ResizeObserver;
+  let observed = [], disconnected = 0, roCallback;
+  globalThis.ResizeObserver = class {
+    constructor(cb) { roCallback = cb; }
+    observe(target) { observed.push(target); }
+    disconnect() { disconnected++; }
+  };
+  let added = 0, removed = 0;
+  const origAdd = window.addEventListener, origRemove = window.removeEventListener;
+  window.addEventListener = (...args) => { added++; return origAdd(...args); };
+  window.removeEventListener = (...args) => { removed++; return origRemove(...args); };
+  try {
+    let anchorRect = { left: 900, right: 980, top: 600, bottom: 626 };
+    let panelRect = { width: 280, height: 140 };
+    const anchorRef = { current: { getBoundingClientRect: () => anchorRect } };
+    const panelRef = { current: { getBoundingClientRect: () => panelRect } };
+    let open = true, side = "top";
+    function Probe() {
+      return useAnchoredPosition({ open, anchorRef, panelRef, side, align: "end", gap: 8, margin: 8 });
+    }
+    const view = mount(Probe, {}, true);
+    assert.equal(view.render(), null, "initial render before layout effect runs");
+    assert.deepEqual(view.render(), { left: 700, top: 452 }, "placed above and end-aligned to anchor");
+    assert.equal(observed.length, 2, "observes both anchor and panel resizes");
+    // Panel grows dynamically: ResizeObserver repositions without waiting for window resize.
+    panelRect = { width: 280, height: 180 };
+    roCallback();
+    assert.deepEqual(view.render(), { left: 700, top: 412 }, "re-measures on ResizeObserver callback");
+    // Near top edge: flips below the trigger and clamps horizontally inside the viewport.
+    panelRect = { width: 280, height: 140 };
+    anchorRect = { left: 20, right: 100, top: 40, bottom: 66 };
+    windowEvents.dispatch("resize");
+    assert.deepEqual(view.render(), { left: 8, top: 74 }, "flips below anchor and clamps to left margin");
+    // Explicit bottom side flips above when near the bottom edge.
+    side = "bottom";
+    anchorRect = { left: 900, right: 980, top: 720, bottom: 746 };
+    view.render();
+    assert.deepEqual(view.render(), { left: 700, top: 572 }, "bottom side flips above near viewport floor");
+    // Unmounting before the scheduled rAF fires cancels it and removes all listeners/observers.
+    view.unmount();
+    assert.equal(removed, added, "every window listener removed on unmount");
+    assert.ok(disconnected >= 1, "ResizeObserver disconnected on unmount");
+    advance(20);
+  } finally {
+    window.addEventListener = origAdd;
+    window.removeEventListener = origRemove;
+    if (savedRO === undefined) delete globalThis.ResizeObserver; else globalThis.ResizeObserver = savedRO;
+  }
+});
+// EffortControl: document-level Escape and focus leaving the trigger/popover dismiss the panel cleanly.
+await scenario({ primitives: { useAnchoredPosition: undefined } }, ({ slots, mount, internals: { en } }) => {
+  const Control = slots.find(({ options }) => options.id === "rhine-effort").Component({}).props.children.type;
+  const efforts = [{ id: "off" }, { id: "high" }, { id: "max" }];
+  const snapshot = { status: "ready", current: { provider: "deepseek", model: "v4", reasoningEffort: "high" },
+    groups: [{ id: "deepseek", models: [{ id: "v4", reasoning: { efforts, defaultEffort: "high" } }] }] };
+  const props = { available: true, load: noop, select: async () => ({ ok: true }), t: (key) => en[key],
+    directory: { getSnapshot: () => snapshot, subscribe: () => noop } };
+  const view = mount(Control, props, true);
+  let tree = view.render();
+  assert.equal(tree.props.children[2], false, "popover starts closed");
+  // Open via trigger click.
+  tree.props.children[1].props.onClick();
+  tree = view.render();
+  assert.ok(tree.props.children[2], "popover opens on click");
+  // Document Escape closes even when focus is on the trigger/outside the panel.
+  document.dispatch("keydown", { key: "Escape" });
+  tree = view.render();
+  assert.equal(tree.props.children[2], false, "document Escape dismisses popover");
+  // Re-open, then moving focus outside root+panel via Tab/focusin closes it.
+  tree.props.children[1].props.onClick();
+  tree = view.render();
+  assert.ok(tree.props.children[2]);
+  document.dispatch("focusin", { target: {} });
+  tree = view.render();
+  assert.equal(tree.props.children[2], false, "focus leaving trigger and popover closes it");
+  view.unmount();
+});
+{
+  let delegated = 0;
+  await scenario({ primitives: { useAnchoredPosition: () => { delegated++; return { left: 12, top: 34 }; } } }, ({ render, internals: { useAnchoredPosition } }) => {
+    assert.deepEqual(render(() => useAnchoredPosition({ open: true }), {}), { left: 12, top: 34 });
+    assert.equal(delegated, 1, "keeps primitives.useAnchoredPosition when Harness provides it");
+  });
+}
+
 // Answer now (立即回答): switch to "off", stop the reply, follow up once idle, restore after the answer.
 await scenario({ change: (services) => {
   const efforts = [{ id: "off" }, { id: "low" }, { id: "high" }, { id: "max" }];
@@ -471,6 +560,112 @@ await scenario({ change: (services) => {
   const mark = AnswerNowMark();
   assert.equal(mark.props.hidden, true);
   assert.equal(mark.props["data-rl-answer-now"], "");
+});
+
+// Answer now: failed select ({ ok: false }) or disposal while awaiting select must never cancel the session.
+await scenario({ change: (services) => {
+  const efforts = [{ id: "off" }, { id: "max" }];
+  const directory = store({ status: "ready", current: { provider: "deepseek", model: "v4", reasoningEffort: "max" },
+    groups: [{ id: "deepseek", models: [{ id: "v4", reasoning: { efforts, defaultEffort: "max" } }] }] });
+  const calls = [];
+  let pendingSelect;
+  services.answerRace = { calls, setPending(fn) { pendingSelect = fn; } };
+  services.modelDirectories.directoryFor = () => ({ store: directory, load: async () => {}, select: async ({ reasoningEffort }) => {
+    calls.push(["select", reasoningEffort]);
+    return pendingSelect ? await pendingSelect() : { ok: false, error: { code: "session/writer-held" } };
+  } });
+  const binding = services.sessions.binding;
+  services.sessions.binding = (id) => ({ session: { ...binding(id).session,
+    cancel: async () => { calls.push(["cancel"]); return { ok: true }; },
+    prompt: async () => { calls.push(["prompt"]); return { ok: true }; } } });
+} }, async ({ slots, render, status, services, dispose }) => {
+  const { calls, setPending } = services.answerRace;
+  const entry = slots.find(({ options }) => options.id === "rhine-answer-now");
+  const Button = entry.Component({}).props.children.type;
+  const props = { ...entry.options.inject("s1"), t: (key) => key };
+  status.emit(new Map([["s1", { running: true }]]));
+  await render(Button, props).props.onClick();
+  assert.deepEqual(calls, [["select", "off"]], "failed select ({ ok: false }) aborts before cancel()");
+  assert.ok(render(Button, props), "button becomes available again after cleanup");
+  // Disposal while select() is in flight must also prevent cancel() once it resolves.
+  let resolveSelect;
+  setPending(() => new Promise((resolve) => { resolveSelect = resolve; }));
+  const click = render(Button, props).props.onClick();
+  dispose();
+  resolveSelect({ ok: true });
+  await click;
+  assert.deepEqual(calls, [["select", "off"], ["select", "off"]], "disposed plugin never cancels after late select resolution");
+});
+
+// Answer now on routed/custom models (e.g. magpie) without an "off" effort:
+// lowers to the model's lowest effort and restores, or cancels & prompts directly when no lower level exists.
+await scenario({ change: (services) => {
+  const directory = store({
+    status: "ready",
+    current: { provider: "magpie", model: "auto/deepseek-v4.1-flash", reasoningEffort: "max" },
+    groups: [{
+      id: "magpie",
+      models: [
+        { id: "auto/deepseek-v4.1-flash", reasoning: { efforts: [{ id: "low" }, { id: "high" }, { id: "max" }] } },
+        { id: "workbuddy/hy4flash", reasoning: { efforts: [{ id: "high" }] } },
+        { id: "custom/no-meta" }
+      ]
+    }]
+  });
+  const calls = [];
+  services.magpieTest = { calls, directory };
+  services.modelDirectories.directoryFor = () => ({ store: directory, load: async () => {}, select: async (selection) => {
+    calls.push(["select", selection.reasoningEffort ?? null]);
+    const next = { provider: selection.provider, model: selection.model, ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort }) };
+    directory.emit({ ...directory.getSnapshot(), current: next });
+    return { ok: true };
+  } });
+  const binding = services.sessions.binding;
+  services.sessions.binding = (id) => ({ session: { ...binding(id).session,
+    cancel: async () => { calls.push(["cancel"]); return { ok: true }; },
+    prompt: async (content, mode) => { calls.push(["prompt", content[0].text, mode]); return { ok: true }; } } });
+} }, async ({ slots, render, status, services, internals: { ANSWER_MARK } }) => {
+  const { calls, directory } = services.magpieTest;
+  const entry = slots.find(({ options }) => options.id === "rhine-answer-now");
+  const Button = entry.Component({}).props.children.type;
+  const props = { ...entry.options.inject("s1"), t: (key) => key };
+  status.emit(new Map([["s1", { running: true }]]));
+
+  // 1. Multi-level routed model without "off" (max -> low -> restore max).
+  assert.equal(render(Button, props).props.className, "rl-answer-now", "shown for magpie routed model without off");
+  await render(Button, props).props.onClick();
+  assert.deepEqual(calls, [["select", "low"], ["cancel"]]);
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls.at(-1), ["prompt", ANSWER_MARK + "answerNowPrompt", "queue"]);
+  status.emit(new Map([["s1", { running: true }]]));
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls.at(-1), ["select", "max"], "restores previous level after answer");
+
+  // 2. Multi-level routed model with default (unset) reasoningEffort: lowers to low, then restores unset default.
+  calls.length = 0;
+  directory.emit({ ...directory.getSnapshot(), current: { provider: "magpie", model: "auto/deepseek-v4.1-flash" } });
+  status.emit(new Map([["s1", { running: true }]]));
+  await render(Button, props).props.onClick();
+  status.emit(new Map([["s1", { running: false }]]));
+  status.emit(new Map([["s1", { running: true }]]));
+  status.emit(new Map([["s1", { running: false }]]));
+  assert.deepEqual(calls, [["select", "low"], ["cancel"], ["prompt", ANSWER_MARK + "answerNowPrompt", "queue"], ["select", null]]);
+
+  // 3. Single-level routed model ([high]) or model without reasoning metadata: cancels & prompts without calling select().
+  for (const current of [
+    { provider: "magpie", model: "workbuddy/hy4flash", reasoningEffort: "high" },
+    { provider: "magpie", model: "custom/no-meta" }
+  ]) {
+    calls.length = 0;
+    directory.emit({ ...directory.getSnapshot(), current });
+    status.emit(new Map([["s1", { running: true }]]));
+    assert.equal(render(Button, props).props.className, "rl-answer-now");
+    await render(Button, props).props.onClick();
+    status.emit(new Map([["s1", { running: false }]]));
+    status.emit(new Map([["s1", { running: true }]]));
+    status.emit(new Map([["s1", { running: false }]]));
+    assert.deepEqual(calls, [["cancel"], ["prompt", ANSWER_MARK + "answerNowPrompt", "queue"]]);
+  }
 });
 
 // Deleting archived conversations: the menu raises one warning dialog, which deletes on confirm.
@@ -1655,10 +1850,18 @@ await scenario({ config: { balanceAlert: 5, notifyToast: false, notifySound: fal
 // The shared form renders in both settings locations, including the update banner.
 await scenario({ config: { version: "0.2.7" }, stored: { "rhine-splash:update-check": JSON.stringify({ at: Date.now(), latest: "0.2.8" }) } }, async ({ slots, internals: i, render, mount, configStore, advance }) => {
   const plugin = slots.find(({ options }) => options.name === "plugins.row.config");
-  const section = slots.find(({ options }) => options.id === "rhine-splash");
+  const section = slots.find(({ options }) => options.name === "settings.section" && options.id === "rhine-splash");
+  const sectionIcon = slots.find(({ options }) => options.name === "settings.section.icon" && options.id === "rhine-splash");
   assert.equal(section.options.name, "settings.section");
   assert.equal(section.options.order, 30);
   assert.equal(section.options.label(), "settingsNav");
+  assert.ok(sectionIcon, "registers settings.section.icon for Harness 0.2.2+");
+  const iconActive = render(sectionIcon.Component({}).props.children.type, { size: 16, active: true });
+  const iconIdle = render(sectionIcon.Component({}).props.children.type, { size: 16, active: false });
+  assert.equal(iconActive.type, "svg");
+  assert.equal(iconActive.props.width, 16);
+  assert.ok(iconActive.props.children[2].props.fill && !iconActive.props.children[2].props.stroke, "active icon uses filled center diamond");
+  assert.ok(iconIdle.props.children[2].props.stroke && !iconIdle.props.children[2].props.fill, "inactive icon uses outlined center diamond");
   const injected = plugin.options.inject(), shared = section.options.inject();
   assert.strictEqual(injected.hooks.rhineSplash, shared.hooks.rhineSplash);
   assert.strictEqual(injected.hooks.rhineUpdate, i.updates);
@@ -1703,6 +1906,37 @@ await scenario({ config: { version: "0.2.7" }, stored: { "rhine-splash:update-ch
 await scenario({ change: (services) => {
   services.slots.entries = (name) => name === "settings.section" ? [{ options: { id: "rhine-splash" } }] : [];
 } }, ({ slots }) => { assert.equal(slots.some(({ options }) => options.id === "rhine-splash"), false); });
+// Harness 0.2.1 lacks settings.section.icon; section still registers cleanly and disposes without error.
+await scenario({ change: (services) => {
+  const baseInject = services.slots.inject;
+  services.slots.inject = (name, fn) => name === "settings.section.icon" ? noop : baseInject(name, fn);
+} }, ({ slots }) => {
+  assert.ok(slots.some(({ options }) => options.name === "settings.section" && options.id === "rhine-splash"));
+  assert.equal(slots.some(({ options }) => options.name === "settings.section.icon" && options.id === "rhine-splash"), false);
+});
+// Duplicate settings.section.icon id is skipped, and section disposal unregisters icon before section.
+await scenario({ change: (services) => {
+  services.slots.entries = (name) => name === "settings.section.icon" ? [{ options: { id: "rhine-splash" } }] : [];
+} }, ({ slots }) => {
+  assert.ok(slots.some(({ options }) => options.name === "settings.section" && options.id === "rhine-splash"));
+  assert.equal(slots.some(({ options }) => options.name === "settings.section.icon" && options.id === "rhine-splash"), false);
+});
+{
+  const order = [];
+  await scenario({ change: (services) => {
+    const baseRegister = services.slots.register;
+    services.slots.register = (options, Component) => {
+      const stop = baseRegister(options, Component);
+      return () => {
+        if (options.id === "rhine-splash" && (options.name === "settings.section" || options.name === "settings.section.icon")) order.push(options.name);
+        stop();
+      };
+    };
+  } }, ({ dispose }) => {
+    dispose();
+    assert.deepEqual(order, ["settings.section.icon", "settings.section"], "icon disposes before its settings section");
+  });
+}
 for (const [version, latest, newer] of [["0.2.8", "0.2.8", false], ["0.2.9", "0.2.8", false], ["0.2.7", "0.2.8", true]]) {
   await scenario({ config: { version }, stored: { "rhine-splash:update-check": JSON.stringify({ at: Date.now(), latest }) } }, ({ internals: { updates } }) => {
     assert.deepEqual(updates.getSnapshot(), { latest, newer });
